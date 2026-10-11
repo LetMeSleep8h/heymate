@@ -25,7 +25,7 @@ export const TeachingSteps: React.FC = () => {
       </div>
       <Interactive.Div name="Teaching loop" style={{position: 'absolute', left: vertical ? 88 : 1000, right: 88, top: vertical ? 820 : 255, opacity: interpolate(frame, [0.3 * fps, 0.8 * fps], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
         <Step number="01" title="Ask for a walkthrough" detail="A plan for the task in front of you." active={active === 0} />
-        <Step number="02" title="Follow the pointer" detail="You do the step in your app." active={active === 1} />
+        <Step number="02" title="Follow the pointer" detail="You try it in the app or website." active={active === 1} />
         <Step number="03" title="Continue when ready" detail="A fresh screen check. The next step." active={active === 2} />
       </Interactive.Div>
     </TeachingFrame>

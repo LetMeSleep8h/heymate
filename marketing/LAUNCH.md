@@ -4,11 +4,11 @@ Working launch plan, updated 11 October 2026. Copy below is a draft; it is not a
 
 ## Lead with a useful task
 
-**Positioning:** Learn your Mac, one step at a time.
+**Positioning:** Learn your software. One step at a time.
 
-**One sentence:** HeyMate is a free, open-source Mac companion that explains the next step, points to it, and waits while you learn the app in front of you.
+**One sentence:** HeyMate gives spoken, step-by-step guidance while you learn desktop apps and websites. Free and open source, currently available for macOS.
 
-**First audience:** Mac users learning a creative or everyday app. Start with one observable result, such as removing a background from a sample logo in Photopea. Coding agents and notch utilities can support the story after the main benefit is clear.
+**First audience:** People using macOS who want to learn a creative tool, everyday desktop app, or website. macOS is the current host platform; the teaching scope is software, including the web. Start with one observable result, such as removing a background from a sample logo in Photopea. Coding agents and notch utilities can support the story after the main benefit is clear.
 
 **Promise to prove:** A person can finish the task and repeat it without asking again. Treat this as a product goal until real tests establish it. Do not claim superiority over HeyClicky, OpenClicky, ChatGPT, or every notch app from a feature checklist.
 
@@ -42,11 +42,11 @@ Produce a readable 16:9 walkthrough and a separately framed 9:16 cut; do not cro
 
 Post one is under 280 characters without an attachment URL:
 
-> Learning an app should leave you with a skill. HeyMate points to the next step, explains it out loud, and waits while you try it. Free, open source, and built for Mac. I'm looking for people to test one useful walkthrough: https://getheymate.vercel.app
+> Learn desktop apps and websites, one step at a time. HeyMate points, explains, and waits while you try it. Free and open source. Available for macOS. Try one useful walkthrough: https://getheymate.vercel.app
 
 Follow-up after real task verification:
 
-> Try it with a small task in the app you're learning. Hold Control + Option and ask “Walk me through this, one step at a time.” It uses your Claude or ChatGPT plan through the official CLI. Provider limits apply; screen guidance needs a vision-capable model.
+> Try it with a small task in a desktop app or website. Hold Control + Option and ask “Walk me through this, one step at a time.” It uses your Claude or ChatGPT plan through the official CLI. Provider limits apply; screen guidance needs a vision-capable model.
 
 Contributor invitation:
 
@@ -56,15 +56,15 @@ Use one clear action per post. Do not ask viewers simultaneously to install, sta
 
 ## Draft creator outreach
 
-Send only to creators whose content includes Mac apps or learning creative software. Personalize using a specific relevant video after reviewing it; do not send a bulk template.
+Send only to creators whose content teaches desktop software or websites and who can test on macOS. Personalize using a specific relevant video after reviewing it; do not send a bulk template.
 
-> I build HeyMate, a free, open-source Mac companion for learning an app step by step. I'm testing a short Photopea walkthrough with a sample logo. Would you be interested in trying that task and sharing what fails? I can send the exact sample, build, setup notes, and an uncut recording. There is no requirement for a positive review. Source and download: https://github.com/UmarSiddiqui/heymate
+> I build HeyMate, free, open-source software for learning desktop apps and websites step by step, currently available for macOS. I'm testing a short Photopea walkthrough with a sample logo. Would you be interested in trying that task and sharing what fails? I can send the exact sample, build, setup notes, and an uncut recording. There is no requirement for a positive review. Source and download: https://github.com/UmarSiddiqui/heymate
 
 Do not claim the recording is ready until it exists. Offer a reproducible task and honest limitations, not “better than every competitor.” Disclose any compensation or provided benefit if that changes.
 
 ## Distribution sequence
 
-1. **Pilot:** Recruit ten testers from existing contacts and relevant Mac or creative communities where self-promotion is allowed. Use the same task and feedback form, then run one revision.
+1. **Pilot:** Recruit ten testers who can use macOS from existing contacts and communities about learning software or creative work. Check that self-promotion is allowed. Use the same task and feedback form, then run one revision.
 2. **Public proof:** Publish the verified clip natively on X and one video channel; link to a landing page whose first screen matches the task. Use a distinct campaign URL for each channel.
 3. **Community:** Share the build in one relevant community, answer questions, and fix reported blockers. Check that community's current rules before posting. Existing notes report a Show HN account restriction; do not work around it.
 4. **Creators:** Approach a small relevant group with the task, uncut evidence, current build, and known limitations. Follow up only when there is useful new evidence.
