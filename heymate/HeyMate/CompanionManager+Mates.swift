@@ -587,30 +587,40 @@ extension CompanionManager: MateRoutineRunning {
     }()
 
     private func acceptMateCreation(_ text: String) -> Bool {
-        guard let jobs = MateCreationParser.parse(text), !jobs.isEmpty else { return false }
+        guard let requests = MateCreationParser.parseRequests(text), !requests.isEmpty else { return false }
+        if let takenName = requests.compactMap(\.name).first(where: { mateDirectory.mateStore.isNameTaken($0) }) {
+            appendUserMessage(text)
+            appendAssistantMessage("A mate named \(takenName) already exists. Choose a different name or edit that mate.")
+            return true
+        }
         var existingNames = mateDirectory.mates.filter { !$0.archived }.map(\.name)
         var created: [Mate] = []
         let now = Date()
-        for job in jobs {
-            let name = MateNameGenerator.name(for: job, existingNames: existingNames)
+        for request in requests {
+            let name = request.name ?? MateNameGenerator.name(for: request.job, existingNames: existingNames)
             let mate = Mate(
                 id: UUID(),
                 name: name,
-                job: job,
+                job: request.job,
                 pinned: false,
                 archived: false,
                 unreadCount: 0,
                 createdAt: now,
                 updatedAt: now,
                 memoryNote: "",
-                folderPath: nil
+                folderPath: nil,
+                soul: request.soul
             )
             guard mateDirectory.upsertMate(mate) else { continue }
             ensureMateFolder(id: mate.id)
             existingNames.append(name)
             created.append(mate)
         }
-        guard let first = created.first else { return false }
+        guard let first = created.first else {
+            appendUserMessage(text)
+            appendAssistantMessage("I couldn't save that mate. Try creating it again from New mate.")
+            return true
+        }
         syncMatePublications()
         openMate(id: first.id)
         appendUserMessage(text)
