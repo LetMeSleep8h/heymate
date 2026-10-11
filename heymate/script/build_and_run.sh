@@ -70,6 +70,7 @@ run_xcodebuild() {
     -destination 'platform=macOS,arch=arm64' \
     -derivedDataPath "$DERIVED_DATA" \
     "${XCODE_SIGNING_ARGUMENTS[@]}" \
+    ENABLE_CODE_COVERAGE=NO \
     -quiet \
     "$@"
 }

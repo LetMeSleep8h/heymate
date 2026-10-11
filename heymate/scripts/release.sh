@@ -271,6 +271,7 @@ xcodebuild archive \
     SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_KEY}" \
     MARKETING_VERSION="${MARKETING_VERSION}" \
     CURRENT_PROJECT_VERSION="${BUILD_NUMBER}" \
+    ENABLE_CODE_COVERAGE=NO \
     2>&1 | tail -5
 
 # Check what Xcode actually baked in before anything leaves this Mac. An app

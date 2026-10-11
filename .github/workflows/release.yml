@@ -92,6 +92,9 @@ jobs:
           echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
 
       - name: Build (universal, self-signed)
+        # Xcode now defaults ENABLE_CODE_COVERAGE to YES, and Swift packages
+        # only pick up the override from the command line. Instrumented
+        # binaries write an LLVM profile error to every agent runner log.
         run: |
           xcodebuild \
             -project "$PROJECT" \
@@ -101,6 +104,7 @@ jobs:
             -derivedDataPath "$DERIVED_DATA" \
             ARCHS="arm64 x86_64" \
             ONLY_ACTIVE_ARCH=NO \
+            ENABLE_CODE_COVERAGE=NO \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="${{ steps.signing.outputs.identity }}" \
             DEVELOPMENT_TEAM= \
@@ -126,6 +130,13 @@ jobs:
           # Permissions survive updates only while this requirement stays put.
           codesign -dr - "$APP" 2>&1 | grep -q 'certificate root = H"a5bc67c8702a1027e762f26cf4f3400686fe7d5e"' \
             || { echo "::error::HeyMate is not signed with the HeyMate Open Source Signing certificate"; codesign -dr - "$APP"; exit 1; }
+          # Coverage-instrumented code would print an LLVM profile error into
+          # every agent runner log, so empty logs would never be cleaned up.
+          for BINARY in "$APP/Contents/MacOS/$APP_NAME" "$APP/Contents/Helpers/HeyMateAgentRunner"; do
+            if otool -l "$BINARY" | grep -q __llvm_prf; then
+              echo "::error::$BINARY was built with code coverage instrumentation"; exit 1
+            fi
+          done
           lipo -archs "$APP/Contents/MacOS/$APP_NAME"
           /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist"
 
