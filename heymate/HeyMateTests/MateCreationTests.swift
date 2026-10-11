@@ -174,20 +174,28 @@ struct MateCreationCommandTests {
         defer { fixture.cleanUp() }
         let manager = fixture.manager
         let text = "Create a test mate named Pixel QA, a patient Photopea design tutor. Explain one step then wait. Do not start a routine or coding job."
+        #expect(!manager.hasActivatedConnectors)
 
-        #expect(manager.acceptLocalMateCommand(text))
+        #expect(manager.sendTypedMessage(text))
 
         let mate = try #require(manager.mates.first { $0.name == "Pixel QA" })
         #expect(mate.job == "a patient Photopea design tutor")
         #expect(mate.soul == "Explain one step then wait. Do not start a routine or coding job.")
         #expect(manager.activeMateID == mate.id)
         #expect(manager.currentChat.mateID == mate.id)
-        #expect(manager.currentChat.messages.first?.text == text)
-        #expect(manager.currentChat.messages.last?.text.contains("I added a mate.") == true)
+        #expect(manager.currentChat.firstMoment?.name == "Pixel QA")
+        #expect(manager.currentChat.firstMoment?.role == mate.job)
+        #expect(manager.currentChat.messages.count == 1)
+        #expect(manager.currentChat.messages.first?.role == .assistant)
+        #expect(manager.currentChat.messages.first?.text.hasPrefix("I'm Pixel QA.") == true)
+        #expect(manager.currentChat.messages.first?.text.contains("I added a mate") == false)
+        #expect(mate.folderPath == nil)
+        #expect(!FileManager.default.fileExists(atPath: MateWorkspace.proposedURL(for: mate, projectsRoot: MateWorkspace.projectsRoot()).path))
         #expect(FileMateStore(fileURL: fixture.root.appendingPathComponent("mates.json")).mate(id: mate.id) == mate)
         #expect(manager.currentResponseTask == nil)
         #expect(manager.agentRuns.isEmpty)
         #expect(manager.routines.isEmpty)
+        #expect(!manager.hasActivatedConnectors)
     }
 
     @Test func duplicateExplicitNameIsHandledWithoutRenamingOrStartingWork() throws {
@@ -218,17 +226,128 @@ struct MateCreationCommandTests {
         #expect(fixture.manager.currentResponseTask == nil)
     }
 
+    @Test func firstMomentReopensWithoutDuplicatingOrReplacingHistory() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let mate = try #require(manager.createMate(name: "Mira", job: "a patient design tutor"))
+        let original = manager.currentChat
+        manager.openMate(id: manager.mateDirectory.defaultMateID)
+        manager.openMate(id: mate.id)
+        #expect(manager.currentChat == original)
+        manager.appendUserMessage("I want to learn masks")
+        let continued = manager.currentChat
+        manager.finishMateLaunch()
+        manager.openMate(id: mate.id)
+        #expect(manager.currentChat == continued)
+        let reloaded = FileChatHistoryStore(fileURL: fixture.root.appendingPathComponent("chats.json"))
+        #expect(reloaded.session(id: original.id) == continued)
+        #expect(reloaded.loadAll().filter { $0.mateID == mate.id }.count == 1)
+        #expect(manager.currentChat.messages.filter { $0.role == .assistant }.count == 1)
+    }
+
+    @Test func starterOnlyCreatesAnEditableDraftAndDoesNotReappear() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let mate = try #require(manager.createMate(name: "Bolt", job: "a practical code reviewer"))
+        let greeting = manager.currentChat.messages
+        let suggestion = try #require(manager.currentChat.firstMoment?.starter)
+        #expect(manager.useMateStarterInComposer() == suggestion.prompt)
+        #expect(manager.currentChat.draftText == suggestion.prompt)
+        #expect(manager.currentChat.messages == greeting)
+        #expect(manager.currentChat.firstMoment?.starter == nil)
+        #expect(manager.currentResponseTask == nil)
+        #expect(manager.agentRuns.isEmpty)
+        #expect(manager.routines.isEmpty)
+        #expect(mate.folderPath == nil)
+        manager.updateCurrentDraft("Review just this small function")
+        manager.openMate(id: manager.mateDirectory.defaultMateID)
+        manager.openMate(id: mate.id)
+        #expect(manager.currentChat.draftText == "Review just this small function")
+        #expect(manager.currentChat.firstMoment?.starter == nil)
+        #expect(manager.currentChat.messages == greeting)
+    }
+
+    @Test func starterNeverOverwritesAnExistingDraftAndCanBeDismissed() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let mate = try #require(manager.createMate(name: "Echo", job: "catalogues unusual sounds"))
+        manager.updateCurrentDraft("My own question")
+        #expect(manager.useMateStarterInComposer() == nil)
+        #expect(manager.currentChat.draftText == "My own question")
+        #expect(manager.currentChat.firstMoment?.starter != nil)
+        manager.dismissMateStarter()
+        manager.openMate(id: manager.mateDirectory.defaultMateID)
+        manager.openMate(id: mate.id)
+        #expect(manager.currentChat.firstMoment?.starter == nil)
+        #expect(manager.currentChat.draftText == "My own question")
+        #expect(manager.currentResponseTask == nil)
+    }
+
+    @Test func historyOffKeepsFirstMomentInMemoryOnly() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        manager.rememberConversationsEnabled = false
+        _ = try #require(manager.createMate(name: "Mira", job: "a patient design tutor"))
+        #expect(manager.currentChat.messages.count == 1)
+        #expect(manager.currentChat.firstMoment != nil)
+        #expect(manager.chatHistoryStore.loadAll().isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("chats.json").path))
+    }
+
+    @Test func creatingWithoutOpeningPreservesTheCurrentConversationAndDraft() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        manager.appendUserMessage("Keep this conversation open")
+        manager.updateCurrentDraft("My unfinished thought")
+        let original = manager.currentChat
+        let mate = try #require(manager.createMate(name: "Bolt", job: "a practical code reviewer", opensChat: false))
+        #expect(manager.currentChat == original)
+        let firstChat = try #require(manager.chatHistoryStore.loadAll().first { $0.mateID == mate.id })
+        #expect(firstChat.firstMoment?.name == "Bolt")
+        #expect(firstChat.messages.count == 1)
+        manager.openMate(id: mate.id)
+        #expect(manager.currentChat == firstChat)
+        #expect(manager.currentResponseTask == nil)
+        #expect(manager.agentRuns.isEmpty)
+    }
+
+    @Test func eachMateInAListGetsItsOwnFirstMoment() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        #expect(manager.sendTypedMessage("make me three mates: watches my inbox, reviews code, teaches design"))
+        let mates = manager.mateDirectory.mates.filter { !$0.conductsOthers }
+        #expect(mates.count == 3)
+        for mate in mates {
+            let chats = manager.chatHistoryStore.loadAll().filter { $0.mateID == mate.id }
+            #expect(chats.count == 1)
+            #expect(chats.first?.firstMoment?.name == mate.name)
+            #expect(chats.first?.messages.count == 1)
+            #expect(chats.first?.messages.first?.text.hasPrefix("I'm \(mate.name).") == true)
+        }
+        #expect(manager.currentResponseTask == nil)
+        #expect(manager.agentRuns.isEmpty)
+        #expect(manager.routines.isEmpty)
+    }
+
     @MainActor
     private final class Fixture {
         let root: URL
         let manager: CompanionManager
         private let preferences: [String: Any]
-        private let preferenceKeys = ["selectedAgentBrain", "defaultHeadlessExecutor", "chatConnectorExclusions", "rememberConversations"]
+        private let preferenceKeys = ["selectedAgentBrain", "defaultHeadlessExecutor", "chatConnectorExclusions", "rememberConversations", "selectedVoiceSpeakProvider", "selectedVoiceListenProvider"]
 
         init() throws {
             preferences = Dictionary(uniqueKeysWithValues: preferenceKeys.compactMap { key in
                 UserDefaults.standard.object(forKey: key).map { (key, $0) }
             })
+            UserDefaults.standard.set(VoiceSpeakProvider.macOS.rawValue, forKey: CompanionManager.speakPreferenceKey)
+            UserDefaults.standard.set(VoiceListenProvider.apple.rawValue, forKey: CompanionManager.listenPreferenceKey)
             root = FileManager.default.temporaryDirectory.appendingPathComponent("heymate-mate-creation-\(UUID())")
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             manager = CompanionManager(
@@ -240,6 +359,7 @@ struct MateCreationCommandTests {
                 mateStore: FileMateStore(fileURL: root.appendingPathComponent("mates.json")),
                 routineStore: FileMateRoutineStore(fileURL: root.appendingPathComponent("routines.json"))
             )
+            manager.rememberConversationsEnabled = true
         }
 
         func cleanUp() {

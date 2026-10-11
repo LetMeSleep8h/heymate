@@ -5,6 +5,62 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct ChatTurnNavigationTests {
+    @Test(arguments: ["new", "open", "mate", "delete", "clear", "clearMate", "stop"],
+          ["talk", "agent", "fallback"])
+    func navigationRejectsLateIntentClassification(action: String, route: String) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let gate = SuspendedIntentRequest()
+        manager.voiceIntentClassifier.performRequest = { try await gate.request($0) }
+        let other = fixture.addMate(name: "Pixel", brain: .onDevice)
+        let otherChat = fixture.addChat(mateID: other.id)
+        let input = "draft the reply to Sam"
+        #expect(VoiceRouter.decide(input) == .needsClassification)
+        #expect(manager.sendTypedMessage(input))
+        let classification = try #require(manager.currentResponseTask)
+        try await gate.waitForRequest()
+        #expect(manager.isComposerStopVisible)
+        switch action {
+        case "new": manager.startNewChat()
+        case "open": manager.openChat(id: otherChat.id)
+        case "mate": manager.openMate(id: other.id)
+        case "delete": manager.deleteChat(id: manager.currentChat.id)
+        case "clear": manager.clearAllChats()
+        case "clearMate": manager.clearChats(forMateID: try #require(manager.currentChat.mateID))
+        default: manager.cancelInFlightChatTurn()
+        }
+        let expectedChat = manager.currentChat
+        gate.finish(route: route)
+        await classification.value
+        #expect(manager.currentChat == expectedChat)
+        #expect(fixture.client.requests.isEmpty)
+        #expect(manager.agentRuns.isEmpty)
+        #expect(manager.state == .idle)
+        #expect(!manager.isComposerStopVisible)
+    }
+
+    @Test func oldClassificationCannotReplaceANewerReply() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let gate = SuspendedIntentRequest()
+        manager.voiceIntentClassifier.performRequest = { try await gate.request($0) }
+        #expect(manager.sendTypedMessage("draft the reply to Sam"))
+        let classification = try #require(manager.currentResponseTask)
+        try await gate.waitForRequest()
+        manager.sendTranscriptToClaudeWithScreenshot(transcript: "New question", shouldCaptureScreen: false)
+        let reply = try #require(manager.currentResponseTask)
+        try await fixture.client.waitForRequest()
+        gate.finish(route: "agent")
+        await classification.value
+        #expect(manager.isResponseInFlight)
+        #expect(manager.agentRuns.isEmpty)
+        fixture.client.finish(text: "New answer")
+        await reply.value
+        #expect(manager.currentChat.messages.map(\.text) == ["New question", "New answer"])
+    }
+
     @Test(arguments: ["new", "open", "mate", "delete", "clear", "clearMate"],
           ["approval", "running", "listening", "finalizing"])
     func navigationPreservesUnrelatedStateAfterACompletedReply(action: String, interaction: String) async throws {
@@ -300,18 +356,514 @@ struct ChatTurnNavigationTests {
         #expect(manager.currentChat.messages.isEmpty)
     }
 
+    @Test(arguments: [false, true])
+    func openCodeConsentResumesInReceivingMatesChat(isHandoff: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        let worker = fixture.addMate(name: "Scout", brain: .openCode)
+        let workerChat = fixture.addChat(mateID: worker.id)
+        let other = fixture.addMate(name: "Pixel", brain: .onDevice)
+        manager.openMate(id: other.id)
+        if isHandoff {
+            manager.beginHandoff(MateHandoff(mateID: worker.id, mateName: worker.name,
+                                             instruction: "Explain account terminology."))
+        } else {
+            #expect(manager.kickoffRoutine(fixture.addRoutine(mateID: worker.id)) == .busy)
+        }
+        #expect(manager.openCodeTrainingNotice?.modelKey == key)
+        #expect(!OpenCodeTrainingConsent.isAcknowledged(key))
+        #expect(fixture.client.requests.isEmpty)
+        #expect(manager.backgroundRoutineSession == nil)
+        // A new visible chat must not become the background request's destination.
+        manager.startNewChat()
+        let visibleChat = manager.currentChat
+        manager.confirmOpenCodeTrainingSend()
+        let task = try #require(manager.currentResponseTask)
+        try await fixture.client.waitForRequest()
+        #expect(OpenCodeTrainingConsent.isAcknowledged(key))
+        #expect(manager.conversationBrainForTurn == .openCode)
+        #expect(manager.selectedBrain == .onDevice)
+        #expect(manager.backgroundRoutineSession?.id == workerChat.id)
+        #expect(fixture.client.requests[0].systemPrompt.contains("Scout"))
+        fixture.client.finish(text: "Account means a sign-in identity.")
+        await task.value
+        #expect(manager.currentChat == visibleChat)
+        #expect(manager.chatHistoryStore.session(id: workerChat.id)?.messages.last?.text
+            .contains("sign-in identity") == true)
+    }
+
+    @Test(arguments: [false, true])
+    func receivingNonOpenCodeMateDoesNotUseVisibleMatesConsent(isHandoff: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        let worker = fixture.addMate(name: "Scout", brain: .onDevice)
+        let workerChat = fixture.addChat(mateID: worker.id)
+        let visible = fixture.addMate(name: "Pixel", brain: .openCode)
+        manager.openMate(id: visible.id)
+        if isHandoff {
+            manager.beginHandoff(MateHandoff(mateID: worker.id, mateName: worker.name,
+                                             instruction: "Explain account terminology."))
+        } else {
+            #expect(manager.kickoffRoutine(fixture.addRoutine(mateID: worker.id)) == .started)
+        }
+        let task = try #require(manager.currentResponseTask)
+        try await fixture.client.waitForRequest()
+        #expect(manager.openCodeTrainingNotice == nil)
+        #expect(!OpenCodeTrainingConsent.isAcknowledged(key))
+        #expect(manager.conversationBrainForTurn == .onDevice)
+        #expect(manager.backgroundRoutineSession?.id == workerChat.id)
+        fixture.client.finish(text: "A test answer.")
+        await task.value
+    }
+
+    @Test(arguments: ["delete", "clearMate", "clearAll", "deleteMate", "changeModel", "changeBrain", "deleteRoutine", "pauseRoutine"])
+    func changedOrDeletedConsentTargetCannotResume(action: String) throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        var worker = fixture.addMate(name: "Scout", brain: .openCode)
+        let chat = fixture.addChat(mateID: worker.id)
+        let routine = fixture.addRoutine(mateID: worker.id)
+        #expect(manager.kickoffRoutine(routine) == .busy)
+        #expect(manager.openCodeTrainingNotice != nil)
+        switch action {
+        case "delete": manager.deleteChat(id: chat.id)
+        case "clearMate": manager.clearChats(forMateID: worker.id)
+        case "clearAll": manager.clearAllChats()
+        case "deleteMate": _ = manager.deleteMate(id: worker.id)
+        case "changeModel": manager.openCodeModelID = "another-free-model"
+        case "changeBrain":
+            worker.brainRawValue = AgentBrain.onDevice.rawValue
+            _ = manager.mateDirectory.upsertMate(worker)
+        case "deleteRoutine": manager.deleteRoutine(id: routine.id)
+        default: manager.pauseRoutine(id: routine.id)
+        }
+        manager.confirmOpenCodeTrainingSend()
+        #expect(manager.openCodeTrainingNotice == nil)
+        #expect(!OpenCodeTrainingConsent.isAcknowledged(key))
+        #expect(fixture.client.requests.isEmpty)
+        #expect(manager.currentResponseTask == nil)
+        #expect(manager.backgroundRoutineSession == nil)
+    }
+
+    @Test func addressedMateChecksItsOwnProviderBeforeSending() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        let worker = fixture.addMate(name: "Scout", brain: .openCode)
+        #expect(!manager.sendTypedMessage("Ask Scout to explain account terminology."))
+        #expect(manager.currentChat.mateID == worker.id)
+        #expect(manager.openCodeTrainingNotice?.modelKey == key)
+        #expect(fixture.client.requests.isEmpty)
+        #expect(manager.currentResponseTask == nil)
+        manager.startNewChat()
+        manager.confirmOpenCodeTrainingSend()
+        #expect(manager.openCodeTrainingNotice == nil)
+        #expect(!OpenCodeTrainingConsent.isAcknowledged(key))
+        #expect(manager.currentResponseTask == nil)
+    }
+
+    @Test func finalTalkBoundaryAlsoRequiresOpenCodeConsent() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        let worker = fixture.addMate(name: "Scout", brain: .openCode)
+        manager.openMate(id: worker.id)
+        manager.sendTranscriptToClaudeWithScreenshot(transcript: "Private test words", shouldCaptureScreen: false)
+        #expect(manager.openCodeTrainingNotice?.modelKey == key)
+        #expect(fixture.client.requests.isEmpty)
+        #expect(manager.currentResponseTask == nil)
+        #expect(manager.currentChat.messages.isEmpty)
+    }
+
+    @Test func consentWaitsForNewerReplyWithoutInterruptingIt() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        let worker = fixture.addMate(name: "Scout", brain: .openCode)
+        _ = fixture.addChat(mateID: worker.id)
+        #expect(manager.kickoffRoutine(fixture.addRoutine(mateID: worker.id)) == .busy)
+        manager.sendTranscriptToClaudeWithScreenshot(transcript: "New foreground question", shouldCaptureScreen: false)
+        let foregroundTask = try #require(manager.currentResponseTask)
+        try await fixture.client.waitForRequest()
+        manager.confirmOpenCodeTrainingSend()
+        #expect(manager.openCodeTrainingNotice?.modelKey == key)
+        #expect(!OpenCodeTrainingConsent.isAcknowledged(key))
+        #expect(!foregroundTask.isCancelled)
+        #expect(manager.backgroundRoutineSession == nil)
+        fixture.client.finish(text: "Foreground answer.")
+        await foregroundTask.value
+        // A completed task handle must not keep an approved routine busy forever.
+        manager.confirmOpenCodeTrainingSend()
+        let backgroundTask = try #require(manager.currentResponseTask)
+        try await fixture.client.waitForRequest()
+        #expect(OpenCodeTrainingConsent.isAcknowledged(key))
+        #expect(manager.backgroundRoutineSession?.mateID == worker.id)
+        fixture.client.finish(text: "Background answer.")
+        await backgroundTask.value
+    }
+
+    @Test(arguments: ["talk", "agent"])
+    func changingProviderDiscardsLateIntentClassification(route: String) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let gate = SuspendedIntentRequest()
+        manager.voiceIntentClassifier.performRequest = { try await gate.request($0) }
+        #expect(manager.sendTypedMessage("draft the reply to Sam"))
+        let classification = try #require(manager.currentResponseTask)
+        try await gate.waitForRequest()
+        _ = fixture.selectUnapprovedOpenCodeModel()
+        manager.selectedBrain = .openCode
+        gate.finish(route: route)
+        await classification.value
+        #expect(fixture.client.requests.isEmpty)
+        #expect(manager.agentRuns.isEmpty)
+        #expect(manager.currentChat.messages.isEmpty)
+        #expect(manager.state == .idle)
+    }
+
+    @Test(arguments: ["brain", "model"], ["none", "listening", "finalizing"])
+    func invalidatedVoiceClassificationReleasesOnlyItsOwnInput(change: String, newerInput: String) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let gate = SuspendedIntentRequest()
+        manager.voiceIntentClassifier.performRequest = { try await gate.request($0) }
+        if change == "model" {
+            manager.selectedBrain = .openCode
+            OpenCodeTrainingConsent.acknowledge(fixture.selectUnapprovedOpenCodeModel())
+        }
+        manager.dispatch(.startListening(.talk))
+        manager.dispatch(.finishListening)
+        manager.handleTalkTranscript("draft the reply to Sam")
+        let classification = try #require(manager.currentResponseTask)
+        try await gate.waitForRequest()
+        #expect(manager.state == .finalizingTranscript)
+
+        if newerInput != "none" {
+            // The Talk shortcut cancels the old response before starting
+            // another recording. Its late classifier must not finish this one.
+            classification.cancel()
+            manager.dispatch(.startListening(.talk))
+            if newerInput == "finalizing" { manager.dispatch(.finishListening) }
+        }
+        let expectedState: CompanionState = newerInput == "none" ? .idle : manager.state
+        if change == "model" { manager.openCodeModelID = "changed-model" }
+        else { manager.selectedBrain = .codex }
+        gate.finish(route: "agent")
+        await classification.value
+
+        #expect(manager.state == expectedState)
+        #expect((manager.typedMessageBusyReason == nil) == (newerInput == "none"))
+        #expect(!manager.isComposerStopVisible)
+        #expect(fixture.client.requests.isEmpty)
+        #expect(manager.agentRuns.isEmpty)
+        #expect(manager.currentChat.messages.isEmpty)
+    }
+
+    @Test(arguments: [false, true], ["agent", "fallbackAgent", "brainChanged", "modelChanged", "localToTalk", "replacement"])
+    func backgroundClassificationFinishesOnlyItsOwnDelivery(isHandoff: Bool, route: String) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let gate = SuspendedIntentRequest()
+        manager.voiceIntentClassifier.performRequest = { try await gate.request($0) }
+        // Exercise dispatch and its synchronous failure without starting a CLI
+        // or creating a sandbox outside the test directory.
+        manager.agentLauncher.readinessForExecutor = { _ in
+            HeadlessExecutorReadiness(state: .notSignedIn, detail: "Test executor signed out", remedy: "Sign in to test executor.")
+        }
+        manager.agentLauncher.resolveExecutable = { _ in nil }
+        var worker = fixture.addMate(name: "Scout", brain: route == "modelChanged" ? .openCode : .codex)
+        if route == "modelChanged" {
+            OpenCodeTrainingConsent.acknowledge(fixture.selectUnapprovedOpenCodeModel())
+        }
+        let workerChat = fixture.addChat(mateID: worker.id)
+        let input = route == "fallbackAgent" ? "build a test website" : "draft the reply to Sam"
+        #expect(VoiceRouter.decide(input) == .needsClassification)
+        if isHandoff {
+            manager.beginHandoff(MateHandoff(mateID: worker.id, mateName: worker.name, instruction: input))
+        } else {
+            #expect(manager.kickoffRoutine(fixture.addRoutine(mateID: worker.id, task: input)) == .started)
+        }
+        let classification = try #require(manager.currentResponseTask)
+        try await gate.waitForRequest()
+        let other = fixture.addMate(name: "Pixel", brain: .onDevice)
+        manager.openMate(id: other.id)
+        let visibleChat = manager.currentChat
+        if route == "brainChanged" {
+            worker.brainRawValue = AgentBrain.onDevice.rawValue
+            _ = manager.mateDirectory.upsertMate(worker)
+        } else if route == "modelChanged" {
+            manager.openCodeModelID = "new-free-model"
+        } else if route == "replacement" {
+            manager.sendTranscriptToClaudeWithScreenshot(transcript: "Newer background question", shouldCaptureScreen: false)
+        }
+        gate.finish(route: route == "fallbackAgent" ? "fallback" : route == "localToTalk" ? "local" : "agent")
+        await classification.value
+        if route == "localToTalk" || route == "replacement" {
+            // Talk owns the delivery now. The old classifier cannot clear it.
+            #expect(manager.backgroundRoutineSession?.id == workerChat.id)
+            #expect(manager.activeRoutineTurn != nil || manager.activeHandoffMateID != nil)
+            let reply = try #require(manager.currentResponseTask)
+            try await fixture.client.waitForRequest()
+            fixture.client.finish(text: "New background answer.")
+            await reply.value
+        }
+        #expect(manager.activeRoutineTurn == nil)
+        #expect(manager.activeHandoffMateID == nil)
+        #expect(manager.backgroundRoutineSession == nil)
+        #expect(!manager.isChatTurnBusy)
+        #expect(manager.currentChat == visibleChat)
+        if route == "agent" || route == "fallbackAgent" {
+            let run = try #require(manager.agentRunStore.loadAll().first)
+            #expect(run.executor == .codex)
+            #expect(run.chatOwner == AgentChatOwner(mateID: worker.id, chatID: workerChat.id))
+            #expect(run.status == .failed)
+            #expect(!FileManager.default.fileExists(atPath: run.workspaceURL.path))
+        } else {
+            #expect(manager.agentRunStore.loadAll().isEmpty)
+        }
+    }
+
+    @Test func heldVoiceConsentFinishesTranscriptBeforeConfirmation() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        let mate = fixture.addMate(name: "Scout", brain: .openCode)
+        manager.openMate(id: mate.id)
+        manager.dispatch(.startListening(.talk))
+        manager.dispatch(.finishListening)
+        #expect(manager.state == .finalizingTranscript)
+        #expect(manager.holdForOpenCodeTrainingConsent("Explain account terminology.", imageAttachments: []))
+        #expect(manager.state == .idle)
+        #expect(fixture.client.requests.isEmpty)
+        manager.confirmOpenCodeTrainingSend()
+        let task = try #require(manager.currentResponseTask)
+        try await fixture.client.waitForRequest()
+        #expect(OpenCodeTrainingConsent.isAcknowledged(key))
+        #expect(manager.openCodeTrainingNotice == nil)
+        fixture.client.finish(throwing: CancellationError())
+        await task.value
+    }
+
+    @Test(arguments: [false, true])
+    func heldConsentDoesNotClearUnrelatedAgentState(waitingForApproval: Bool) throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        let mate = fixture.addMate(name: "Scout", brain: .openCode)
+        manager.openMate(id: mate.id)
+        let runID = UUID()
+        manager.dispatch(.agentStarted(runID))
+        if waitingForApproval { manager.dispatch(.approvalRequested(runID)) }
+        let agentState = manager.state
+        #expect(manager.holdForOpenCodeTrainingConsent("Explain account terminology.", imageAttachments: []))
+        manager.confirmOpenCodeTrainingSend()
+        #expect(manager.state == agentState)
+        #expect(manager.openCodeTrainingNotice?.modelKey == key)
+        #expect(!OpenCodeTrainingConsent.isAcknowledged(key))
+        #expect(fixture.client.requests.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func backgroundDeliveryDoesNotPersistChatWhenHistoryIsOff(isHandoff: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        manager.rememberConversationsEnabled = false
+        let worker = fixture.addMate(name: "Scout", brain: .onDevice)
+        if isHandoff {
+            manager.beginHandoff(MateHandoff(mateID: worker.id, mateName: worker.name,
+                                             instruction: "Explain account terminology."))
+        } else {
+            #expect(manager.kickoffRoutine(fixture.addRoutine(mateID: worker.id)) == .started)
+        }
+        let task = try #require(manager.currentResponseTask)
+        try await fixture.client.waitForRequest()
+        #expect(manager.backgroundRoutineSession?.messages.isEmpty == false)
+        #expect(manager.chatHistoryStore.loadAll().isEmpty)
+        fixture.client.finish(text: "Temporary conversation answer.")
+        await task.value
+        #expect(manager.backgroundRoutineSession == nil)
+        #expect(manager.activeRoutineTurn == nil)
+        #expect(manager.activeHandoffMateID == nil)
+        #expect(manager.chatHistoryStore.loadAll().isEmpty)
+        #expect(manager.savedChats.isEmpty)
+        #expect(manager.memoryRepository.loadAll().isEmpty)
+    }
+
+    @Test(arguments: [false, true], [AgentBrain.codex, .openCode])
+    func explicitBackgroundAgentUsesReceivingBrainAndConsent(isHandoff: Bool, receivingBrain: AgentBrain) throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        manager.agentLauncher.readinessForExecutor = { _ in
+            HeadlessExecutorReadiness(state: .notSignedIn, detail: "Test executor signed out", remedy: "Sign in to test executor.")
+        }
+        manager.agentLauncher.resolveExecutable = { _ in nil }
+        let worker = fixture.addMate(name: "Scout", brain: receivingBrain)
+        let workerChat = fixture.addChat(mateID: worker.id)
+        let visible = fixture.addMate(name: "Pixel", brain: receivingBrain == .codex ? .openCode : .codex)
+        manager.openMate(id: visible.id)
+        let visibleChat = manager.currentChat
+        let input = "agent, count the sample workspace"
+        #expect(VoiceRouter.decide(input) == .agent)
+        if isHandoff {
+            manager.beginHandoff(MateHandoff(mateID: worker.id, mateName: worker.name, instruction: input))
+        } else {
+            let result = manager.kickoffRoutine(fixture.addRoutine(mateID: worker.id, task: input))
+            #expect(result == (receivingBrain == .openCode ? .busy : .started))
+        }
+        if receivingBrain == .openCode {
+            #expect(manager.agentRunStore.loadAll().isEmpty)
+            #expect(manager.openCodeTrainingNotice?.modelKey == key)
+            #expect(!OpenCodeTrainingConsent.isAcknowledged(key))
+            manager.confirmOpenCodeTrainingSend()
+            #expect(OpenCodeTrainingConsent.isAcknowledged(key))
+        } else {
+            #expect(manager.openCodeTrainingNotice == nil)
+            #expect(!OpenCodeTrainingConsent.isAcknowledged(key))
+        }
+        let run = try #require(manager.agentRunStore.loadAll().first)
+        #expect(run.executor == receivingBrain.executor)
+        #expect(run.chatOwner == AgentChatOwner(mateID: worker.id, chatID: workerChat.id))
+        #expect(run.status == .failed)
+        #expect(!FileManager.default.fileExists(atPath: run.workspaceURL.path))
+        #expect(manager.currentChat == visibleChat)
+        #expect(manager.backgroundRoutineSession == nil)
+        #expect(manager.activeRoutineTurn == nil)
+        #expect(manager.activeHandoffMateID == nil)
+    }
+
+    @Test(arguments: ["foreground", "routine", "handoff"])
+    func explicitOpenCodeOverrideRequiresConsentAndResumesSameOwner(delivery: String) throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        fixture.blockAgentLaunches()
+        let worker = fixture.addMate(name: "Scout", brain: .codex)
+        let workerChat = fixture.addChat(mateID: worker.id)
+        if delivery == "foreground" { manager.openChat(id: workerChat.id) }
+        let visibleChat = manager.currentChat
+        let input = "agent, use OpenCode to count the sample workspace"
+        switch delivery {
+        case "routine": #expect(manager.kickoffRoutine(fixture.addRoutine(mateID: worker.id, task: input)) == .busy)
+        case "handoff": manager.beginHandoff(MateHandoff(mateID: worker.id, mateName: worker.name, instruction: input))
+        default: #expect(!manager.sendTypedMessage(input))
+        }
+        #expect(manager.openCodeTrainingNotice?.modelKey == key)
+        #expect(manager.agentRunStore.loadAll().isEmpty)
+        #expect(fixture.client.requests.isEmpty)
+        manager.confirmOpenCodeTrainingSend()
+        #expect(OpenCodeTrainingConsent.isAcknowledged(key))
+        let run = try #require(manager.agentRunStore.loadAll().first)
+        #expect(run.executor == .openCode)
+        #expect(run.chatOwner == AgentChatOwner(mateID: worker.id, chatID: workerChat.id))
+        #expect(!FileManager.default.fileExists(atPath: run.workspaceURL.path))
+        if delivery != "foreground" { #expect(manager.currentChat == visibleChat) }
+    }
+
+    @Test func explicitCodexOverrideDoesNotAskForUnusedOpenCodeModel() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        fixture.blockAgentLaunches()
+        let mate = fixture.addMate(name: "Scout", brain: .openCode)
+        manager.openMate(id: mate.id)
+        #expect(manager.sendTypedMessage("agent, use Codex to count the sample workspace"))
+        #expect(manager.openCodeTrainingNotice == nil)
+        #expect(!OpenCodeTrainingConsent.isAcknowledged(key))
+        #expect(manager.agentRunStore.loadAll().first?.executor == .codex)
+    }
+
+    @Test func classifiedRewritePreservesApprovedExplicitExecutor() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        fixture.blockAgentLaunches()
+        let mate = fixture.addMate(name: "Scout", brain: .codex)
+        manager.openMate(id: mate.id)
+        let ownerChatID = manager.currentChat.id
+        let gate = SuspendedIntentRequest()
+        manager.voiceIntentClassifier.performRequest = { try await gate.request($0) }
+        let input = "use OpenCode to draft the reply to Sam"
+        #expect(VoiceRouter.decide(input) == .needsClassification)
+        #expect(!manager.sendTypedMessage(input))
+        #expect(manager.currentResponseTask == nil)
+        manager.confirmOpenCodeTrainingSend()
+        let classification = try #require(manager.currentResponseTask)
+        try await gate.waitForRequest()
+        // The mock task omits the provider; the original explicit choice wins.
+        gate.finish(route: "agent")
+        await classification.value
+        #expect(OpenCodeTrainingConsent.isAcknowledged(key))
+        let run = try #require(manager.agentRunStore.loadAll().first)
+        #expect(run.executor == .openCode)
+        #expect(run.chatOwner == AgentChatOwner(mateID: mate.id, chatID: ownerChatID))
+    }
+
+    @Test(arguments: [false, true])
+    func lateOpenCodeJobOverrideFailsClosed(attached: Bool) throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        fixture.blockAgentLaunches()
+        manager.selectedBrain = .codex
+        let runID = attached
+            ? manager.startAttachedAgent(prompt: "Use OpenCode to count samples", workspaceURL: fixture.root)
+            : manager.startSandboxAgent(prompt: "Use OpenCode to count samples")
+        #expect(runID == nil)
+        #expect(manager.agentRunStore.loadAll().isEmpty)
+        #expect(!OpenCodeTrainingConsent.isAcknowledged(key))
+        #expect(manager.commandBarFeedback?.contains("resend the task") == true)
+        #expect(manager.openCodeTrainingNotice == nil)
+    }
+
+    @Test func talkBoundaryDoesNotMistakeExecutorWordsForItsActualProvider() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let key = fixture.selectUnapprovedOpenCodeModel()
+        manager.selectedBrain = .openCode
+        manager.sendTranscriptToClaudeWithScreenshot(transcript: "Explain how to work with Codex", shouldCaptureScreen: false)
+        #expect(manager.openCodeTrainingNotice?.modelKey == key)
+        #expect(manager.currentResponseTask == nil)
+        #expect(fixture.client.requests.isEmpty)
+    }
+
     @MainActor
     private final class Fixture {
         let root: URL
         let client = SuspendedConversationClient()
         let manager: CompanionManager
         private let preferences: [String: Any]
-        private let preferenceKeys = ["selectedAgentBrain", "defaultHeadlessExecutor", "chatConnectorExclusions", "rememberConversations"]
+        private let preferenceKeys = ["selectedAgentBrain", "defaultHeadlessExecutor", "chatConnectorExclusions", "rememberConversations",
+                                      "selectedOpenCodeProviderID", "selectedOpenCodeModelID", "openCodeTrainingAcknowledgedModelKeys",
+                                      "selectedVoiceSpeakProvider", "selectedVoiceListenProvider"]
 
         init() throws {
             preferences = Dictionary(uniqueKeysWithValues: preferenceKeys.compactMap { key in
                 UserDefaults.standard.object(forKey: key).map { (key, $0) }
             })
+            UserDefaults.standard.set(VoiceSpeakProvider.macOS.rawValue, forKey: "selectedVoiceSpeakProvider")
+            UserDefaults.standard.set(VoiceListenProvider.apple.rawValue, forKey: "selectedVoiceListenProvider")
             root = FileManager.default.temporaryDirectory.appendingPathComponent("heymate-chat-navigation-\(UUID())")
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             manager = CompanionManager(
@@ -325,6 +877,7 @@ struct ChatTurnNavigationTests {
                 conversationClient: client
             )
             manager.rememberConversationsEnabled = true
+            manager.selectedBrain = .onDevice
         }
 
         func addMate(name: String, brain: AgentBrain, exclusions: [String] = []) -> Mate {
@@ -344,6 +897,28 @@ struct ChatTurnNavigationTests {
             return chat
         }
 
+        func blockAgentLaunches() {
+            manager.agentLauncher.readinessForExecutor = { _ in
+                HeadlessExecutorReadiness(state: .notSignedIn, detail: "Test executor signed out", remedy: "Sign in to test executor.")
+            }
+            manager.agentLauncher.resolveExecutable = { _ in nil }
+        }
+
+        func selectUnapprovedOpenCodeModel() -> String {
+            manager.openCodeProviderID = "consent-test-\(UUID())"
+            manager.openCodeModelID = "big-pickle"
+            return OpenCodeTrainingPolicy.modelKey(providerID: manager.openCodeProviderID, modelID: manager.openCodeModelID)
+        }
+
+        func addRoutine(mateID: UUID, task: String = "Explain account terminology.") -> MateRoutine {
+            let routine = MateRoutine(id: UUID(), mateID: mateID, task: task,
+                                      enabled: true, schedule: .everyHours(1), nextRunAt: Date(),
+                                      lastRunAt: nil, lastStatusMessage: nil, consecutiveFailures: 0, pausedReason: nil)
+            manager.mateDirectory.addRoutine(routine)
+            manager.syncMatePublications()
+            return routine
+        }
+
         func cleanUp() {
             manager.cancelInFlightChatTurn()
             client.finish(throwing: CancellationError())
@@ -353,6 +928,39 @@ struct ChatTurnNavigationTests {
             }
             try? FileManager.default.removeItem(at: root)
         }
+    }
+}
+
+@MainActor
+private final class SuspendedIntentRequest {
+    private var continuation: CheckedContinuation<(Data, URLResponse), Error>?
+    private var url: URL?
+
+    func request(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        url = request.url
+        // Ignore cancellation to reproduce providers returning after navigation.
+        return try await withCheckedThrowingContinuation { continuation = $0 }
+    }
+
+    func waitForRequest() async throws {
+        for _ in 0..<100 {
+            if continuation != nil { return }
+            await Task.yield()
+        }
+        throw NSError(domain: "IntentRequestDidNotStart", code: 1)
+    }
+
+    func finish(route: String) {
+        guard let continuation, let url else { return }
+        self.continuation = nil
+        if route == "fallback" {
+            continuation.resume(throwing: CancellationError())
+            return
+        }
+        let reply = "\"route\":\"\(route)\",\"task\":\"Write an old test file\"}"
+        let data = try! JSONSerialization.data(withJSONObject: ["content": [["type": "text", "text": reply]]])
+        let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        continuation.resume(returning: (data, response))
     }
 }
 

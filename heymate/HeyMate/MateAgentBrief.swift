@@ -99,7 +99,7 @@ enum MateWorkParser {
 /// reads as steps the mate took rather than a card the user has to go find.
 enum MateRunReport {
     static func planReady(plan: String) -> String {
-        let body = plan.count > 700 ? String(plan.prefix(699)) + "…" : plan
+        let body = AgentReceiptPrivacy.safeResult(plan)
         var text = "Step 1 of 2 · plan ready. Nothing has changed yet."
         if !body.isEmpty { text += "\n\n\(body)" }
         text += "\n\nApprove the plan below or in Jobs, and I'll do it."
@@ -107,18 +107,23 @@ enum MateRunReport {
     }
 
     static func finished(summary: String, changedFileCount: Int?) -> String {
-        var text = "Step 2 of 2 · done."
-        let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { text += " \(trimmed)" }
+        let trimmed = AgentReceiptPrivacy.privateAnswer(summary)
+        var text = AgentFinalResult.hasUsableAnswer(trimmed)
+            ? "Job result\n\n\(trimmed)" : AgentFinalResult.missingMessage
         if let changedFileCount, changedFileCount > 0 {
             text += "\n\(changedFileCount) file\(changedFileCount == 1 ? "" : "s") changed. You can undo this from Jobs."
         }
-        text += "\n\nWant me to keep doing this on a schedule? Say \"every morning, …\" and I'll set it up."
         return text
     }
 
     static func failed(message: String) -> String {
-        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = AgentReceiptPrivacy.privateAnswer(message)
         return "That run stopped: \(trimmed.isEmpty ? "it failed without a reason" : trimmed). Tell me to try again and I'll start a new run."
+    }
+
+    static func cancelled(summary: String) -> String {
+        summary.hasPrefix("Handed off to Terminal")
+            ? "This job was handed off to Terminal. HeyMate has no final result yet."
+            : "This job was cancelled. It did not report a completed result."
     }
 }

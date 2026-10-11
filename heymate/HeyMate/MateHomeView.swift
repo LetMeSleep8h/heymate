@@ -313,6 +313,7 @@ struct MateHomeView: View {
             } label: {
                 HStack(alignment: .center, spacing: 8) {
                     MateFaceView(mate: mate, size: 28)
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(mate.name)
                             .font(DS.Fonts.headline)
@@ -441,6 +442,7 @@ struct MateHomeView: View {
                 .buttonStyle(.plain)
                 .pointerCursor()
                 .help("Edit picture, details, and soul")
+                .accessibilityHidden(true)
                 Button {
                     beginMateSettings(mate)
                 } label: {
@@ -452,6 +454,7 @@ struct MateHomeView: View {
                 .buttonStyle(.plain)
                 .pointerCursor()
                 .help("Edit picture, details, and soul")
+                .accessibilityLabel("Edit \(mate.name)")
             }
         }
     }
@@ -628,6 +631,7 @@ struct MateHomeView: View {
                 .buttonStyle(.plain)
                 .pointerCursor()
                 .help("Edit picture, details, and soul")
+                .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Button {
@@ -641,6 +645,7 @@ struct MateHomeView: View {
                 .buttonStyle(.plain)
                 .pointerCursor()
                 .help("Edit picture, details, and soul")
+                .accessibilityLabel("Edit \(activeMate?.name ?? Mate.defaultName)")
                 Text(activeMate?.job ?? Mate.defaultJob)
                     .font(DS.Fonts.body)
                     .foregroundColor(DS.Colors.textTertiary)
@@ -655,8 +660,18 @@ struct MateHomeView: View {
                 // The action row under each message reserves its height even
                 // while hidden, so the gap between messages can stay small.
                 VStack(alignment: .leading, spacing: 10) {
+                    if let firstMoment = companionManager.currentChat.firstMoment {
+                        Label(firstMoment.confirmation, systemImage: "checkmark.circle")
+                            .font(DS.Fonts.caption)
+                            .foregroundColor(DS.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.bottom, 12)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("HeyMate confirmation: \(firstMoment.confirmation)")
+                    }
                     if companionManager.currentChat.messages.isEmpty
-                        && companionManager.streamingAssistantText.isEmpty {
+                        && companionManager.streamingAssistantText.isEmpty
+                        && companionManager.currentChat.firstMoment == nil {
                         emptyMate
                             .padding(.top, 36)
                     }
@@ -672,6 +687,10 @@ struct MateHomeView: View {
                     ForEach(messageWindow.visible) { message in
                         messageRow(message, isLatest: message.id == messageWindow.visible.last?.id)
                             .id(message.id)
+                    }
+                    if let starter = companionManager.currentChat.firstMoment?.starter,
+                       !companionManager.currentChat.messages.contains(where: { $0.role == .user }) {
+                        firstMateStarter(starter)
                     }
                     if !companionManager.streamingAssistantText.isEmpty {
                         streamingRow
@@ -771,17 +790,19 @@ struct MateHomeView: View {
                 .buttonStyle(.plain)
                 .pointerCursor()
                 .help("Edit picture, details, and soul")
+                .accessibilityLabel("Edit \(mate.name)")
             }
             Text(activeMate?.job ?? Mate.defaultJob)
                 .font(DS.Fonts.reading)
                 .foregroundColor(DS.Colors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            ForEach(MateStarterPrompts.lines(for: activeMate?.job ?? ""), id: \.self) { line in
+            if let mate = activeMate {
+                let starter = MateFirstMoment.starter(for: mate)
                 Button {
-                    typedMessageInput = line
-                    sendTypedMessageFromInput()
+                    typedMessageInput = starter.prompt
+                    isComposerFocused = true
                 } label: {
-                    Text(line)
+                    Text(starter.label)
                         .font(DS.Fonts.reading)
                         .foregroundColor(DS.Colors.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -794,9 +815,45 @@ struct MateHomeView: View {
                 }
                 .buttonStyle(.plain)
                 .pointerCursor()
+                .disabled(!typedMessageInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help("Add an editable message without sending")
             }
         }
         .frame(maxWidth: 520, alignment: .leading)
+    }
+
+    private func firstMateStarter(_ starter: MateStarterSuggestion) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 12) {
+                Button {
+                    if let draft = companionManager.useMateStarterInComposer() {
+                        typedMessageInput = draft
+                        isComposerFocused = true
+                    }
+                } label: {
+                    Label(starter.label, systemImage: "square.and.pencil")
+                        .font(DS.Fonts.headline)
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+                .disabled(!typedMessageInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help("Add an editable message without sending")
+                .accessibilityIdentifier("mate-starter-use")
+                Spacer(minLength: 8)
+                Button("Not now") { companionManager.dismissMateStarter() }
+                    .buttonStyle(.plain)
+                    .font(DS.Fonts.caption)
+                    .foregroundColor(DS.Colors.textSecondary)
+                    .pointerCursor()
+                    .accessibilityLabel("Dismiss starter suggestion")
+            }
+            Text("Edit the message, then send when you're ready.")
+                .font(DS.Fonts.caption)
+                .foregroundColor(DS.Colors.textSecondary)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: DS.CornerRadius.medium).fill(DS.Colors.surface2))
+        .padding(.top, 2)
     }
 
     private func messageRow(_ message: ChatMessage, isLatest: Bool) -> some View {
@@ -881,6 +938,7 @@ struct MateHomeView: View {
             }
             VStack(alignment: .leading, spacing: 6) {
                 TextField("Message \(activeMate?.name ?? Mate.defaultName)", text: $typedMessageInput, axis: .vertical)
+                    .accessibilityLabel("Message \(activeMate?.name ?? Mate.defaultName)")
                     .textFieldStyle(.plain)
                     .font(DS.Fonts.reading)
                     .foregroundColor(DS.Colors.textPrimary)
@@ -1474,7 +1532,7 @@ struct MateHomeView: View {
                 .foregroundColor(DS.Colors.textSecondary)
                 .pointerCursor()
             } else {
-                Text("New mates get a folder under Projects.")
+                Text("A mate's folder is created when they start file work.")
                     .font(DS.Fonts.body)
                     .foregroundColor(DS.Colors.textTertiary)
             }

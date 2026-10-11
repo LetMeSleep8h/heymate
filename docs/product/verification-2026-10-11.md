@@ -1,157 +1,74 @@
 # Product polish verification — 11 October 2026
 
-The app and test targets built successfully. The final focused run passed **141 tests in 16 suites**. `git diff --check` passed.
+## Current result
 
-## Covered behavior
+The combined app, embedded runner, and test targets built successfully with ad-hoc signing. The complete HeyMateTests target passed **1,114 tests in 167 suites**, in **28.368 seconds**. `git diff --check` passed. Independent reviews of creation, consent, response ownership, and private-result delivery found no remaining blocker after the fixes described below.
 
-- A new mate retains its name and job without a custom personality. First Mate and specialists receive their own saved note.
-- On-device prompts preserve bounded name, job, personality, and memory fields even when individual fields are long or the context budget shrinks. Capability rules remain present.
-- Teaching requests stay in the guided chat flow; execution requests retain the existing plan approval flow.
-- Summary persistence replaces only the originating mate's summary. Shared preferences/project facts remain shared. Legacy summaries decode without losing data and are excluded from replies when no owner is known.
-- Navigation rejects late chunks, stale successes, tool calls, and errors, including providers that ignore cancellation. Background routines retain their chat and selected brain; deleting their history prevents later delivery from recreating it.
-- Approval cancellation cannot clear a newer request. Guided walkthrough parsing, state transitions, and privacy invariants also pass.
+This local result includes the original EOF fix from PR #14 and all current PR #20 polish. The original #14 commit is being integrated into the branch, rather than reauthoring its patch. Final-head CI is a separate check.
 
-The new reply attribution and memory-scope labels compiled successfully. Visual inspection and live model evaluation of the new build remain separate release checks; these unit tests do not establish either.
+**Native acceptance is still pending.** The Mac reports `IOConsoleLocked = Yes`; native accessibility returns no windows and screen capture is blank. Automated tests and a successful app launch do not establish a successful live provider conversation, a completed Photopea walkthrough, or fresh-install behavior. PR #20 must remain draft and unmerged until the patched-app checks below pass.
 
-## Commands
+## Behavior covered
 
-Run from the repository root. The scratch DerivedData path avoids rebuilding or signing the installed app.
+- Each mate receives its own name, job, personality, saved note, and owned summaries. Bounded on-device prompts retain identity and capability rules. Shared preferences/project facts remain shared; legacy ownerless summaries remain stored but are excluded from replies.
+- Explicit named creation happens locally, preserves instructions, handles duplicate names, and conservatively rejects cancelled, qualified, and compound creation commands. Creating a mate shows a distinct local greeting and one editable starter without sending a model request, activating connectors, creating a workspace, or starting a job. Starter use/dismissal persists across reopening; legacy chats still decode.
+- Teaching stays in chat. Foreground responses and intent classification retain their originating conversation/provider and reject stale callbacks after navigation, cancellation, or replacement. Background routines and handoffs retain their own chat; late completion does not recreate deleted history or ignore disabled history.
+- Pending approvals remain request-scoped. Navigation preserves unrelated running jobs, approvals, and voice input. Changing provider/model during a voice classification releases only that request's finished-input state and preserves newer recordings.
+- OpenCode consent follows the receiving mate, model, explicit executor choice, and conversation. Confirmation revalidates its target and resumes the original route. Explicit background agent commands use the receiving mate's provider; classifier rewrites preserve explicit executor choices. Both job launch boundaries refuse an unapproved OpenCode switch before a CLI call.
+- Successful jobs retain their full private answer, up to 32 KiB with an explicit truncation notice, and deliver it to the initiating chat. Missing results are reported as unverified rather than generic success. Failed, blocked, cancelled, and handed-off runs have distinct outcomes.
+- Private final answers use attempt-scoped, atomically durable files with restrictive permissions and guarded reads. Credentials/local absolute paths are redacted; normal source URLs remain useful. Portable receipts and runner journals exclude private answer prose. Journal-before-state recovery, ordinary replay deduplication, follow-ups, and localhost preview resolution are covered. Chat/store writes are not a single cross-file transaction; these tests do not claim crash-atomic exactly-once delivery.
+
+## Failures found and fixed
+
+1. The first combined run exposed the existing CLI EOF spin. The exact original PR #14 patch passed its EOF/runner diagnosis: **12 tests in 3 suites**, 8.829 seconds.
+2. Complete runs still timed out in short runner fixtures. The failure reproduced after manager-heavy suites. A process/stack sample showed approximately 60 real OpenCode/npm/node children and ten cooperative threads blocked in automatic CLI readiness probes. This was not resolved merely by removing speech-model warmup.
+3. The test host now skips automatic readiness probes and selects system voice providers only when actual XCTest hosting is detected. Explicit readiness-probe APIs/tests remain available. A scratch QA app using only `HEYMATE_TEST_DATA_ROOT` keeps normal services. The original preference snapshot and exit restoration remain. No runtime or test timeout was increased.
+4. Review found and fixed explicit-agent provider misrouting, missing executor-override consent, and a stuck foreground voice state after model changes. Targeted regressions are included in the final complete run.
+
+The successful runner fixture completed in 0.114 seconds in the final run; all five terminal-result scenarios completed in 0.371 seconds. Existing framework/deprecation warnings remain; no build error remained.
+
+## Reproduce
+
+Run from the repository root:
 
 ```sh
 xcodebuild \
-  -project heymate/HeyMate.xcodeproj \
-  -scheme HeyMate \
-  -configuration Debug \
+  -project heymate/HeyMate.xcodeproj -scheme HeyMate -configuration Debug \
   -destination 'platform=macOS' \
   -derivedDataPath /tmp/heymate-product-polish-derived \
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
   build-for-testing
 
 xcodebuild \
-  -project heymate/HeyMate.xcodeproj \
-  -scheme HeyMate \
+  -project heymate/HeyMate.xcodeproj -scheme HeyMate \
   -destination 'platform=macOS' \
   -derivedDataPath /tmp/heymate-product-polish-derived \
-  -only-testing:HeyMateTests/MateProfileTests \
-  -only-testing:HeyMateTests/OnDevicePromptFitTests \
-  -only-testing:HeyMateTests/FirstMateTests \
-  -only-testing:HeyMateTests/MateAgentBriefTests \
-  -only-testing:HeyMateTests/BehaviorContractTests \
-  -only-testing:HeyMateTests/GuidedReplyParserTests \
-  -only-testing:HeyMateTests/GuidedWalkthroughTests \
-  -only-testing:HeyMateTests/MateWorkGateTests \
-  -only-testing:HeyMateTests/MemoryRepositoryTests \
-  -only-testing:HeyMateTests/MemoryAndSkillsPromptTests \
-  -only-testing:HeyMateTests/PrivacyInvariantsTests \
-  -only-testing:HeyMateTests/ChatTurnNavigationTests \
-  -only-testing:HeyMateTests/ConnectorApprovalPolicyTests \
-  -only-testing:HeyMateTests/ComputerUseActionTests \
-  -only-testing:HeyMateTests/ComputerUseTagParserTests \
-  -only-testing:HeyMateTests/CompanionStateMachineTests \
+  -only-testing:HeyMateTests \
   test-without-building
 ```
 
-## Local evidence
+Local evidence:
 
-- Build log: `/tmp/heymate-product-polish-build.log`
-- Test log: `/tmp/heymate-product-polish-tests.log`
-- Result bundle: `/tmp/heymate-product-polish-derived/Logs/Test/Test-HeyMate-2026.10.11_11-51-31-+0800.xcresult`
-- Final test result: `141 tests in 16 suites passed after 0.174 seconds.`
+- Build: `/tmp/heymate-polish-final-isolation-build.log`
+- Complete tests: `/tmp/heymate-polish-final-isolation-full-tests.log`
+- Result bundle: `/tmp/heymate-product-polish-derived/Logs/Test/Test-HeyMate-2026.10.11_13-27-37-+0800.xcresult`
+- EOF diagnosis: `/tmp/heymate-polish-pr14-diagnostic-tests.log`
+- Order-dependent failure diagnosis: `/tmp/heymate-engine-manager-sample.txt` and `/tmp/heymate-engine-manager-processes.txt` (private local diagnostics, not release assets)
 
-The repository's existing Apple framework, deprecation, and actor-isolation warnings remain. The new default-budget isolation warning found during this work was fixed before the final run.
+Earlier overlapping checks passed 141 tests/16 suites for identity/memory/navigation, 62/8 plus 3 routine tests for named creation, 16/2 after parser review, and 39/5 after navigation-state review. [CI at `5ab9a49`](https://github.com/UmarSiddiqui/heymate/actions/runs/38111416968) passed 1,064 tests/162 suites before the additional polish. These are historical, overlapping checks, not counts to add to the final 1,114.
 
-The full suite was not rerun locally. Open PR #14 separately fixes the headless CLI EOF spin that motivated that local precaution; its files were left untouched. Later, [GitHub Actions for commit `7ae29c1`](https://github.com/UmarSiddiqui/heymate/actions/runs/38111043739) passed the complete HeyMateTests target: **1,061 tests in 162 suites**, in 27.201 seconds. That CI result covers the named-creation changes below but predates the final navigation-state follow-up.
+## Live findings and remaining gate
 
-## Follow-up: direct named mate creation
+Installed version 1.0.38 routed a direct request to create Pixel QA through an approved coding job taking roughly two minutes. Its resulting mate retained the name, but not a separate personality. A later identity reply used Pixel QA correctly; a saved note about a purple-triangle practice logo was missed and unrelated Photopea history appeared. Those observations motivated the creation/memory fixes; they are not tests of the patched build.
 
-Live testing of installed version 1.0.38 found that `Create a test mate named Pixel QA, a patient Photopea design tutor. Explain one step then wait. Do not start a routine or coding job.` took an approved Codex work job of roughly two minutes. Pixel QA was ultimately persisted with the requested name and instructions in its job field, but no personality. This was an unnecessarily expensive route for a local roster change; creation was not impossible.
+An earlier isolated QA copy launched, but native accessibility timed out. In this validation turn, the original installed app, data, and preferences were backed up before staging Debug `5ab9a49` at the normal app path. Startup services ran; both HeyMate and Chrome subsequently had no native windows while the console was locked. No successful live conversation was verified in either patched copy. The original app must be restored if validation ends while blocked.
 
-The follow-up recognizes a narrow, explicit named-creation grammar before a model turn. It saves the requested name, puts the role in the job and subsequent instructions in the personality, and opens the new mate. Existing immediate-save behavior is preserved. A duplicate explicit name receives local feedback instead of being silently renamed. Quoted examples, leading negations, questions, and embedded examples do not match the creation parser. Existing `make me a mate that …` and list commands remain supported.
+Before merging:
 
-The app and test targets built successfully again. **62 tests in 8 suites passed**, followed by **3 routine-phrase tests in 1 suite**. Manager integration checks verify the exact live request persists and opens the mate without starting a response task, agent run, or routine; duplicate names and legacy creation are also covered. No installed app was replaced or signed by these checks. Live evaluation of this new build remains a separate release check.
+1. Test two named mates, their distinct greetings, and separate saved notes with an actual provider.
+2. Switch conversations during a reply and classification; confirm no late output or work in the destination, while unrelated approval/input remains intact.
+3. Run a bounded job, switch chats, verify its useful answer returns to the original chat, then relaunch and verify persistence/recovery.
+4. Complete a real Photopea lesson: open the owned opaque sample PNG, follow HeyMate's guidance to remove white background, export PNG, and verify transparent corners and preserved artwork.
+5. Confirm final-head CI, then merge using a merge commit so the original #14 commit remains in history.
 
-```sh
-xcodebuild \
-  -project heymate/HeyMate.xcodeproj -scheme HeyMate -configuration Debug \
-  -destination 'platform=macOS' -derivedDataPath /tmp/heymate-product-polish-derived \
-  CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
-  build-for-testing
-
-xcodebuild \
-  -project heymate/HeyMate.xcodeproj -scheme HeyMate -destination 'platform=macOS' \
-  -derivedDataPath /tmp/heymate-product-polish-derived \
-  -only-testing:HeyMateTests/MateCreationTests \
-  -only-testing:HeyMateTests/MateCreationCommandTests \
-  -only-testing:HeyMateTests/ChatTurnNavigationTests \
-  -only-testing:HeyMateTests/MateProfileTests \
-  -only-testing:HeyMateTests/FirstMateTests \
-  -only-testing:HeyMateTests/OnDevicePromptFitTests \
-  -only-testing:HeyMateTests/MateAgentBriefTests \
-  -only-testing:HeyMateTests/MateStoreTests \
-  test-without-building
-
-xcodebuild \
-  -project heymate/HeyMate.xcodeproj -scheme HeyMate -destination 'platform=macOS' \
-  -derivedDataPath /tmp/heymate-product-polish-derived \
-  -only-testing:HeyMateTests/MateRoutinePhraseTests \
-  test-without-building
-```
-
-The first focused command originally also contained `-only-testing:HeyMateTests/MateRoutineTests`, which is a filename rather than a suite. The separate run above used the correct suite name; the reported 62 tests do not include those 3 tests.
-
-- Build log: `/tmp/heymate-mate-creation-build.log`
-- Focused test log: `/tmp/heymate-mate-creation-tests.log`
-- Focused result: `/tmp/heymate-product-polish-derived/Logs/Test/Test-HeyMate-2026.10.11_12-05-00-+0800.xcresult`
-- Routine test log: `/tmp/heymate-mate-creation-routine-tests.log`
-- Routine result: `/tmp/heymate-product-polish-derived/Logs/Test/Test-HeyMate-2026.10.11_12-05-28-+0800.xcresult`
-
-### Review follow-up
-
-Review found that trailing request qualifiers could be stored as personality and a second creation command could be swallowed into the first mate's description. Conservative clause guards now leave cancellations, confirmation conditions, command questions, and compound roster commands to ordinary chat without local mutation. This includes punctuation-free `but don't create it yet` and `and create a mate named Scout` forms. Behavior instructions such as avoiding file creation, waiting for confirmation before each lesson step, asking a question, or teaching how to create a mate remain valid. These are bounded grammar guards, not general natural-language intent classification.
-
-The reviewer rechecked the failing cases and valid counterexamples with no remaining finding in the scoped change. The app/test build passed again; **16 tests in 2 suites passed** in the final focused run:
-
-```sh
-xcodebuild \
-  -project heymate/HeyMate.xcodeproj -scheme HeyMate -destination 'platform=macOS' \
-  -derivedDataPath /tmp/heymate-product-polish-derived \
-  -only-testing:HeyMateTests/MateCreationTests \
-  -only-testing:HeyMateTests/MateCreationCommandTests \
-  test-without-building
-```
-
-- Final build log: `/tmp/heymate-mate-creation-review-build.log`
-- Final test log: `/tmp/heymate-mate-creation-review-tests.log`
-- Final result: `/tmp/heymate-product-polish-derived/Logs/Test/Test-HeyMate-2026.10.11_12-13-16-+0800.xcresult`
-
-## Final navigation-state follow-up
-
-Review found that navigating without a live chat response could clear an unrelated job approval or voice-input state. Navigation now distinguishes an active response or lingering playback/guidance from a completed task handle. It can invalidate an older reply and clear its caption while preserving the state owned by listening, transcript finalization, a running job, or a pending job approval. General Stop behavior is unchanged.
-
-Independent re-review found no further issue in this scoped fix. The app/test build passed. **39 tests in 5 suites passed** in the final focused run, including all six navigation operations after a completed reply across four unrelated interaction states, late callbacks during new voice input, caption cleanup during approval, and a real response task awaiting a mocked approval coordinator.
-
-```sh
-xcodebuild \
-  -project heymate/HeyMate.xcodeproj -scheme HeyMate -configuration Debug \
-  -destination 'platform=macOS' -derivedDataPath /tmp/heymate-product-polish-derived \
-  CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
-  build-for-testing
-
-xcodebuild \
-  -project heymate/HeyMate.xcodeproj -scheme HeyMate -destination 'platform=macOS' \
-  -derivedDataPath /tmp/heymate-product-polish-derived \
-  -only-testing:HeyMateTests/ChatTurnNavigationTests \
-  -only-testing:HeyMateTests/CompanionStateMachineTests \
-  -only-testing:HeyMateTests/GuidedWalkthroughTests \
-  -only-testing:HeyMateTests/ConnectorApprovalPolicyTests \
-  -only-testing:HeyMateTests/MateCreationCommandTests \
-  test-without-building
-```
-
-- Build log: `/tmp/heymate-navigation-state-build.log`
-- Test log: `/tmp/heymate-navigation-state-tests.log`
-- Result: `/tmp/heymate-product-polish-derived/Logs/Test/Test-HeyMate-2026.10.11_12-22-17-+0800.xcresult`
-
-## Patched-build live-check limitation
-
-A scratch clone of Debug build `7ae29c1`, with a separate app identity and test-data root, launched successfully. Native accessibility operations timed out, so no chat interaction was verified in that clone. It was quit without replacing the installed app. Live persona, memory, and creation behavior in the patched build therefore remain unverified; the installed-version findings and automated tests above must not be described as a successful live test of the patch.
+The real Photopea recording is not yet available. A five-second native capture proved recording works but showed the wrong browser tab; it is private diagnostic footage. The earlier illustrated concept video is not a substitute for a real walkthrough.
