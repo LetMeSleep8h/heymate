@@ -1,5 +1,25 @@
 # HeyMate demo video
 
+## Teaching concept (24 seconds)
+
+The `Teaching-Concept` folder in Studio contains `TeachingFirst` (1920×1080) and `TeachingFirstVertical` (1080×1920), both 30 fps. This is a new, separate, silent concept film about learning an app step by step and creating helpers for specific jobs. Every frame is labeled **Illustrated concept** and **not a screen recording**. It does not establish that a real task completed or that mate identity passed live testing.
+
+Preview with `npx remotion studio --no-open`, then select either composition. Four individual scenes are registered beside the full edits. Source lives in `src/TeachingFirst.tsx` and `src/teaching/`. It uses the existing app icon and mate faces; no new media dependency or third-party soundtrack is needed.
+
+Keep the original demo below until a verified replacement is ready. For a real capture, follow `marketing/LAUNCH.md` (from the repository root): preserve the uncut recording, provider/version, errors, and any speed-change labels. Do not remove the concept label and present this animation as captured product behavior.
+
+## Teaching share card
+
+`og-teaching` is a 1200×630 static brand card in the `Share-Cards` folder. It uses the existing icon and mate faces with the teaching headline, without recreating app UI or implying a completed task. Source: `src/TeachingShareCard.tsx`.
+
+Reproduce the website asset from this directory:
+
+```sh
+npx remotion still og-teaching ../../website/assets/img/og-teaching-v1.png --image-format=png
+```
+
+## Original illustrated tour
+
 A 38-second motion-graphic demo of HeyMate, built with [Remotion](https://www.remotion.dev). Every UI surface is a React recreation of the real app (matte surfaces, Avenir Next, Signal-blue accent, real copy), so it all animates smoothly and stays crisp at any size. The only bitmap assets are HeyMate's own app icon and mate faces, copied from the app.
 
 This folder is self-contained. It doesn't touch the Xcode project or the website.

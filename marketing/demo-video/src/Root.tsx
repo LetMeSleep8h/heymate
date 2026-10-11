@@ -1,12 +1,26 @@
 import React from 'react';
-import {Composition, Folder} from 'remotion';
+import {Composition, Folder, Still} from 'remotion';
 import {FPS} from './config';
 import {LayoutModeContext} from './components/motion';
 import {HeyMateDemo, SCENES, sceneFrames, TOTAL_FRAMES} from './HeyMateDemo';
 import {SocialCard} from './SocialCard';
+import {TeachingFirst} from './TeachingFirst';
+import {TeachingHook} from './teaching/TeachingHook';
+import {TeachingSteps} from './teaching/TeachingSteps';
+import {TeachingMates} from './teaching/TeachingMates';
+import {TeachingClose} from './teaching/TeachingClose';
+import {TeachingShareCard} from './TeachingShareCard';
 
 export const RemotionRoot: React.FC = () => (
   <>
+    <Folder name="Teaching-Concept">
+      <Composition id="TeachingFirst" component={TeachingFirst} durationInFrames={720} fps={30} width={1920} height={1080} />
+      <Composition id="TeachingFirstVertical" component={TeachingFirst} durationInFrames={720} fps={30} width={1080} height={1920} />
+      <Composition id="TeachingHook" component={TeachingHook} durationInFrames={150} fps={30} width={1920} height={1080} />
+      <Composition id="TeachingSteps" component={TeachingSteps} durationInFrames={240} fps={30} width={1920} height={1080} />
+      <Composition id="TeachingMates" component={TeachingMates} durationInFrames={180} fps={30} width={1920} height={1080} />
+      <Composition id="TeachingClose" component={TeachingClose} durationInFrames={150} fps={30} width={1920} height={1080} />
+    </Folder>
     <Composition id="HeyMateDemo" component={HeyMateDemo} durationInFrames={TOTAL_FRAMES} fps={FPS} width={1920} height={1080} />
     <Composition
       id="HeyMateDemoVertical"
@@ -23,6 +37,7 @@ export const RemotionRoot: React.FC = () => (
       ))}
     </Folder>
     <Folder name="Share-Cards">
+      <Still id="og-teaching" component={TeachingShareCard} width={1200} height={630} />
       <Composition id="og-card" component={SocialCard} durationInFrames={1} fps={FPS} width={1200} height={630} />
       <Composition id="github-social" component={SocialCard} durationInFrames={1} fps={FPS} width={1280} height={640} />
     </Folder>

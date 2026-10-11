@@ -1,144 +1,94 @@
 # HeyMate launch kit
 
-Everything below is ready to paste. Post from your own accounts. Links:
+Working launch plan, updated 11 October 2026. Copy below is a draft; it is not a record of publication. Release notes belong to a released build, not an unmerged PR.
 
-- Repo: https://github.com/UmarSiddiqui/heymate
-- Site + 38 s demo: https://getheymate.vercel.app/#demo
-- Direct download: https://github.com/UmarSiddiqui/heymate/releases/latest/download/HeyMate.dmg
-- Vertical video for X / TikTok / Reels / Shorts: `marketing/demo-video/out/heymate-demo-vertical-1080x1920.mp4`
-- Landscape video: `marketing/demo-video/out/heymate-demo-1080p60.mp4`
-- Looping GIFs: `docs/media/heymate-vision.gif`, `docs/media/heymate-agents.gif`
+## Lead with a useful task
 
-## Status (2026-10-06)
+**Positioning:** Learn your Mac, one step at a time.
 
-- Week 1 fixes shipped: install copy matches one-click sign-in, Homebrew tap (UmarSiddiqui/homebrew-tap), copy buttons + Hotjar events (download_click, github_click, install_copy, brew_copy), Vercel Web Analytics snippet (enable in dashboard), in-app star nudge after 5 answers.
-- awesome-mac #3055 merged. open-source-mac-os-apps #1441 still open.
+**One sentence:** HeyMate is a free, open-source Mac companion that explains the next step, points to it, and waits while you learn the app in front of you.
 
-## Status (2026-09-28)
+**First audience:** Mac users learning a creative or everyday app. Start with one observable result, such as removing a background from a sample logo in Photopea. Coding agents and notch utilities can support the story after the main benefit is clear.
 
-- Done: GitHub social preview, X thread + Boring Notch reply, Search Console on umarsiddiqui3037@gmail.com.
-- PRs open: [awesome-mac #3055](https://github.com/jaywcjlove/awesome-mac/pull/3055), [open-source-mac-os-apps #1441](https://github.com/serhii-londar/open-source-mac-os-apps/pull/1441).
-- You, by hand: awesome-claude-code (human-only web form, see below), Reddit (blocked for Claude's browser), Product Hunt (next week).
-- LinkedIn: draft sits in the composer (not posted). Hotjar site 6785426 tracks getheymate.vercel.app; privacy page discloses it.
-- Show HN blocked: HN is temporarily restricting Show HN posts from new accounts (umarsiddiqui303, karma 1). Comment genuinely for a couple of weeks, then retry. Don't drop the "Show HN" prefix to get around it.
+**Promise to prove:** A person can finish the task and repeat it without asking again. Treat this as a product goal until real tests establish it. Do not claim superiority over HeyClicky, OpenClicky, ChatGPT, or every notch app from a feature checklist.
 
-**awesome-claude-code form** (https://github.com/hesreallyhim/awesome-claude-code/issues/new?template=recommend-resource.yml). One-line description, no pitch:
+Keep private analytics evidence separate from public launch copy. Treat the checks below as proposed gates until a current test records their results.
 
-> Native macOS notch app that runs Claude Code behind a plan-then-approve gate: the CLI plans read-only, the user approves, then the same session resumes with write access after an undo snapshot. Uses the user's existing Claude subscription.
+## Before a broad launch
 
-## Before you post (10 minutes)
+1. Test installation and first-run permissions on a fresh Mac account. Current builds are self-signed and not notarized; document that friction clearly. A terminal installer is not notarization.
+2. Record a complete real walkthrough, including waiting time, mistakes, corrections, and successful export. Use an owned sample image and remove private account details.
+3. Verify two named mates behave differently, retain the right context, and remain distinct after switching chats and relaunching. Do not advertise a polished persona experience from configuration fields alone.
+4. Resolve the current release-blocking bugs and review overlapping PRs. On 11 October the only open PR was [#14: detach CLI pipe readers at EOF](https://github.com/UmarSiddiqui/heymate/pull/14); recheck before editing related code.
+5. Invite ten people to try the same small task. Record where they fail, whether they finish, and whether they use HeyMate again. Fix repeated blockers before paying for reach or making a large announcement.
 
-1. **GitHub social preview:** Repo → Settings → General → Social preview → Upload `docs/media/github-social-preview.png`. This is the card people see when the repo link is shared.
-2. **Pin the repo** on your GitHub profile.
-3. **Add music to the video** if you have a licensed track (see `marketing/demo-video/README.md`). Silent is fine for X, where most people watch on mute.
-4. **Test the download on a clean Mac account**, using the Terminal one-liner, Homebrew, and the DMG's Open Anyway step, so the first 50 people don't hit something you've never seen.
+Suggested pilot gates, not measured results: at least 8 of 10 complete the chosen task without live rescue; at least 5 use HeyMate again within seven days; no unhandled crash, cross-mate identity leak, or private content in telemetry. The small sample gives feedback, not statistical proof.
 
-## Order that tends to work
+## Proof video
 
-1. **Hacker News (Show HN)** on a Tuesday–Thursday, 8–10 am US Pacific. From Perth that's 11 pm–1 am. Stay online for 3 hours to answer every comment.
-2. **X thread** the same hour, with the vertical video attached natively (don't link to it).
-3. **Reddit:** r/macapps first, then r/ClaudeAI and r/ChatGPTCoding a day later. One subreddit per day reads less spammy.
-4. **Product Hunt** a week later, once there are stars and comments to point at.
-5. **Awesome lists** (PRs): `jaywcjlove/awesome-mac` (AI tools section), `serhii-londar/open-source-mac-os-apps`, `hesreallyhim/awesome-claude-code`.
+Use the existing Remotion project for captions and framing. The current 38-second film is a recreated UI animation; label it as an illustrated tour. Do not present it as a screen recording.
 
----
+New capture brief:
 
-## Angle: "Boring Notch, plus an AI"
+- **0–4 s:** Show the starting logo and the exact request: “Walk me through removing this background, one step at a time.”
+- **4–18 s:** Real app points to the first control. The person clicks it. Preserve enough waiting time to show the actual interaction; label any speed-up.
+- **18–32 s:** Show a fresh step after the screen changes, and a correction if one was needed.
+- **32–42 s:** Show the exported transparent image. Briefly repeat the important action without the assistant.
+- **42–50 s:** Name the app, show version/provider used, and link to the demo and source. Note current install limitations in the description.
 
-People who already love notch apps are the easiest audience. Lead with: *everything you use a notch app for (music, calendar, file shelf with AirDrop, battery, volume HUD, mirror), plus an AI that sees your screen and runs your coding agents.* Keep it factual: HN commenters will check. As of v1.0.2, HeyMate covers every shipped Boring Notch feature (music with album art and visualizer, calendar, AirDrop shelf, battery, volume/brightness/keyboard-backlight HUDs, Bluetooth activity, mirror). Weather is on Boring Notch's roadmap and not in either app. The comparison table is in the README.
+Produce a readable 16:9 walkthrough and a separately framed 9:16 cut; do not crop away the highlighted target. Add captions for every spoken instruction. Use only audio and assets with redistribution rights. Keep the original capture and an edit list. Publication requires a completed capture; animations must remain labeled.
 
-X reply to add under the thread:
+## Draft X posts
 
-> If you use Boring Notch: HeyMate does all the notch stuff too (music with album art + visualizer, calendar, AirDrop shelf, battery, volume/brightness HUDs, Bluetooth, camera mirror), then adds timers, clipboard history, and an AI that can see your screen and run Claude Code for you. MIT licensed.
+Post one is under 280 characters without an attachment URL:
 
-## Show HN
+> Learning an app should leave you with a skill. HeyMate points to the next step, explains it out loud, and waits while you try it. Free, open source, and built for Mac. I'm looking for people to test one useful walkthrough: https://getheymate.vercel.app
 
-**Title** (80 characters max):
+Follow-up after real task verification:
 
-> Show HN: HeyMate – an AI buddy in your Mac's notch that uses your own Claude/Codex CLI
+> Try it with a small task in the app you're learning. Hold Control + Option and ask “Walk me through this, one step at a time.” It uses your Claude or ChatGPT plan through the official CLI. Provider limits apply; screen guidance needs a vision-capable model.
 
-**Text:**
+Contributor invitation:
 
-> Hi HN, I built HeyMate, a free, open-source macOS app that lives in the notch.
->
-> You hold Control + Option, ask about something on screen ("why is my Mac so slow?"), and it answers out loud while its cursor flies to the thing it means. It only takes a screenshot when the question needs one, and screenshots are never stored.
->
-> The part I cared most about: it runs on the Claude Code, Codex, or OpenCode CLI you're already signed in to, so there's no HeyMate account and no second API bill. It actively strips ANTHROPIC_API_KEY / OPENAI_API_KEY from the child process so you can't get switched to metered billing by accident.
->
-> Coding agents are approval-gated. The CLI first writes a plan with writes disabled, you approve it, and only then does HeyMate resume the same session with write access, after taking an undo snapshot. Approved work moves into a separately signed helper, so it survives quitting the app.
->
-> Other bits: "mates" (small persistent helpers with their own memory, folder, and schedule), notch micro-apps (file shelf, timers, clipboard), and connectors (Apple apps, local CLIs, MCP).
->
-> It's native SwiftUI, MIT licensed, macOS 14.2+. Builds are self-signed, not notarized, so install with `curl -fsSL https://getheymate.vercel.app/install.sh | bash` or `brew install umarsiddiqui/tap/heymate` to skip the Gatekeeper warning. Every push to main builds and publishes a release automatically.
->
-> 38-second demo: https://getheymate.vercel.app/#demo
-> Code: https://github.com/UmarSiddiqui/heymate
->
-> I'd love feedback on the approval flow and on what you'd want it to see and not see.
+> Want to help build HeyMate? Small contributions welcome: better walkthrough prompts, accessible website controls, or one reproducible app tutorial. Swift isn't required for all of them. Start here: https://github.com/UmarSiddiqui/heymate/blob/main/CONTRIBUTING.md
 
-## X / Twitter thread
+Use one clear action per post. Do not ask viewers simultaneously to install, star, follow, join a chat, and submit a PR. Attach a real clip when one passes the capture checks above. Recheck existing posts before publishing duplicates.
 
-Attach the **vertical video** to post 1.
+## Draft creator outreach
 
-1. > I put an AI in my MacBook's notch.
-   >
-   > Hold ⌃⌥ and ask about anything on your screen. It answers out loud and its cursor flies to what it means. Here I asked "why is my Mac so slow?" and it pointed at the app hogging my CPU.
-   >
-   > Free, open source, and it runs on the Claude/Codex subscription you already pay for. 🧵
+Send only to creators whose content includes Mac apps or learning creative software. Personalize using a specific relevant video after reviewing it; do not send a bulk template.
 
-2. > It lives where your Mac has had a blank spot for years. No dock icon, no menu-bar clutter. Hover the notch → Home, Apps, Agents.
+> I build HeyMate, a free, open-source Mac companion for learning an app step by step. I'm testing a short Photopea walkthrough with a sample logo. Would you be interested in trying that task and sharing what fails? I can send the exact sample, build, setup notes, and an uncut recording. There is no requirement for a positive review. Source and download: https://github.com/UmarSiddiqui/heymate
 
-3. > It hands real coding work to Claude Code, Codex, or OpenCode, with a leash:
-   >
-   > 1. the agent plans read-only
-   > 2. you approve
-   > 3. only then can it write, with an undo snapshot first
-   >
-   > (attach heymate-agents.gif)
+Do not claim the recording is ready until it exists. Offer a reproducible task and honest limitations, not “better than every competitor.” Disclose any compensation or provided benefit if that changes.
 
-4. > "Mates" are small persistent helpers: a name, a job, their own memory and folder, and a schedule. Mine reads my YouTube comments every morning at 8:30.
+## Distribution sequence
 
-5. > No HeyMate account. No HeyMate server. Chats and memory stay on your Mac, keys stay in Keychain, screenshots are never stored.
-   >
-   > Download (macOS 14.2+): https://github.com/UmarSiddiqui/heymate
-   >
-   > A ⭐ genuinely helps.
+1. **Pilot:** Recruit ten testers from existing contacts and relevant Mac or creative communities where self-promotion is allowed. Use the same task and feedback form, then run one revision.
+2. **Public proof:** Publish the verified clip natively on X and one video channel; link to a landing page whose first screen matches the task. Use a distinct campaign URL for each channel.
+3. **Community:** Share the build in one relevant community, answer questions, and fix reported blockers. Check that community's current rules before posting. Existing notes report a Show HN account restriction; do not work around it.
+4. **Creators:** Approach a small relevant group with the task, uncut evidence, current build, and known limitations. Follow up only when there is useful new evidence.
+5. **Contributors:** Turn repeat failures into bounded issues with reproduction steps and acceptance checks. Review small PRs promptly. Give credit in actual release notes.
+6. **Broader launch:** Consider a larger directory or Product Hunt launch after the pilot supports the promise. A calendar date alone is not readiness.
 
-## r/macapps
+## What to measure
 
-**Title:** I made a free, open-source AI assistant that lives in the MacBook notch (uses your existing Claude/ChatGPT CLI, no extra subscription)
+Website: visits by campaign, demo play, download clicks, contribution-link clicks. These are interest signals, not successful installs.
 
-> HeyMate folds into the notch and opens on hover. Hold Control + Option to ask about anything on screen; it answers out loud and points its cursor at what it means.
->
-> - Runs on the ChatGPT or Claude plan you already pay for: pick one in onboarding and click sign in. No account, no extra bill. (Apple Intelligence works if you have neither.)
-> - Notch micro-apps: file shelf, focus timer, clipboard history, now playing, downloads, camera mirror.
-> - Coding agents that must show you a plan and get approval before changing a file, with undo.
-> - Local-first: chats and memory stay on your Mac, and screenshots are never saved.
->
-> Free and MIT licensed, macOS 14.2+ (Intel and Apple silicon). It isn't notarized, so install with the Terminal one-liner or `brew install umarsiddiqui/tap/heymate` to skip the macOS warning. Happy to answer anything about permissions or privacy.
->
-> Demo + download: https://getheymate.vercel.app
+App pilot: install success, first provider connection, first completed walkthrough, wrong-step/correction rate, time to the first useful result, second use within seven days, and successful repeat without help. Use voluntary tester reports first. Any new automatic collection needs visible controls, minimal fields, and tested redaction.
 
-## r/ClaudeAI
+GitHub: qualified visitors, opened issues with reproductions, first PRs, review turnaround, and returning contributors. Stars are a useful result of value and reach; they are not the activation metric.
 
-**Title:** I built a Mac notch app that drives Claude Code with a plan-then-approve gate, on your normal Claude subscription
+## Existing distribution notes to recheck
 
-> Talk to it (push-to-talk), it can see your screen when you ask, and "HeyMate agent, add dark mode to this project" spins up a sandbox where Claude Code writes a read-only plan. Nothing touches disk until you approve; then it resumes the same session with writes enabled, after an undo snapshot.
->
-> It uses `claude auth login --claudeai`, so it's your subscription, not Console billing, and it strips API-key env vars from the child so you can't get metered by accident. Open source (MIT): https://github.com/UmarSiddiqui/heymate
+Earlier notes in this repository reported an X thread, a Boring Notch reply, Search Console setup, GitHub social preview, an awesome-mac listing, an open-source-mac-os-apps submission, a LinkedIn composer draft, and a Show HN restriction. These have not been reverified in this source audit. Inspect the relevant account before reusing, claiming completion, or posting again.
 
-## Product Hunt
+## Links and assets
 
-- **Name:** HeyMate
-- **Tagline** (60 characters max): *The AI buddy that lives in your Mac's notch*
-- **Description:** Hold ⌃⌥ and ask about anything on screen. HeyMate answers out loud, points at the answer, and runs Claude Code, Codex, or OpenCode agents that plan first and wait for your approval, all on the subscription you already have. Free and open source.
-- **Topics:** Mac, Artificial Intelligence, Developer Tools, Open Source, Productivity
-- **Gallery:** og-card.jpg, then the landscape video, then the website screenshots.
-- **Maker comment:** reuse the Show HN text.
+- Site: https://getheymate.vercel.app
+- Repository: https://github.com/UmarSiddiqui/heymate
+- Download: https://github.com/UmarSiddiqui/heymate/releases/latest/download/HeyMate.dmg
+- Contribute: https://github.com/UmarSiddiqui/heymate/blob/main/CONTRIBUTING.md
+- Existing motion source: `marketing/demo-video/`
 
-## Replies to have ready
-
-- **"Is it safe to give it Accessibility and Screen Recording?"** It captures only when a question needs sight. Password managers and System Settings are excluded, screenshots are deleted after the turn, there's no server, and the code is open.
-- **"Why not notarized?"** It will be once there's a Developer ID account. Until then every build is made on GitHub Actions from public source, with a SHA-256 next to each DMG.
-- **"Windows/Linux?"** No. It's built around the Mac notch and macOS APIs.
-- **"Does it cost anything?"** No. Your AI provider bills you exactly as before.
+The existing film uses **Show Me by Peyruis**, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). If using that track, preserve the full attribution from `marketing/demo-video/README.md` in every published description.

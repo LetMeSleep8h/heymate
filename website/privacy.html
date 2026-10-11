@@ -58,15 +58,15 @@
     <div class="wrap-narrow">
       <p class="eyebrow">Privacy</p>
       <h1>Privacy notes.</h1>
-      <p>HeyMate is a Mac app. There is no HeyMate account and no HeyMate server that stores your chats. The short version, which is also written in the app: nothing runs in the background. HeyMate only takes a screenshot when you press the hotkey, and screenshots are never stored.</p>
+      <p>HeyMate is a Mac app with local chat history and no HeyMate account service storing your conversations. Questions and relevant screen context go to the AI provider you select. Screen context is used during active interactions that need it; a walkthrough can capture again between steps. Enabled routines, standing orders, and approved coding jobs can run in the background.</p>
 
       <h2>What HeyMate captures</h2>
       <ul>
-        <li>A screenshot only when a question needs to see the screen. Text-only chat skips the capture.</li>
-        <li>That screenshot is temporary. It is deleted after the turn and is not written into chat history.</li>
+        <li>Screen context for interactions that need it, including Talk, guided walkthroughs, contextual dictation, onboarding demonstrations, and the optional local-control interface. Text-only questions can skip capture.</li>
+        <li>HeyMate chat history does not store screenshot or audio bytes. Some CLI integrations write temporary image files, cleaned up when the request or process ends. The optional local-control interface schedules screenshot cleanup after ten minutes and removes stale files on a later capture. Interrupted cleanup can leave temporary files behind.</li>
         <li>Password managers and System Settings are excluded by default.</li>
         <li>You can limit capture to the frontmost window.</li>
-        <li>Voice stays on your Mac by default: Apple Speech listens and a Mac voice speaks. The optional on-device voice (Parakeet and Kokoro) also runs entirely on your Mac.</li>
+        <li>Apple Speech uses on-device recognition when the selected language supports it; otherwise it can use Apple's speech service. A Mac voice speaks locally. The optional downloaded Parakeet and Kokoro models process voice on your Mac when available; fallback to Apple Speech follows the same language limitation.</li>
       </ul>
       <p>Every macOS permission HeyMate can ask for, and what it does with each one, is on the <a href="permissions.html">permissions page</a>.</p>
 
@@ -88,18 +88,19 @@
 
       <h2>What leaves your Mac</h2>
       <ul>
-        <li>Talk and coding-agent turns go to the CLI you already use — Claude Code, Codex, or OpenCode — or to a Custom API endpoint you configure yourself. HeyMate does not add its own bill.</li>
-        <li>Your voice goes to ElevenLabs only if you add your own ElevenLabs API key and pick ElevenLabs for Listen or Speak.</li>
+        <li>Talk and coding-agent turns go through Claude Code, Codex, OpenCode, or a Custom API endpoint you configure. Relevant screen images can go to that provider. Provider retention and the CLI's own session history are separate from HeyMate's local chat history.</li>
+        <li>The optional Apple Intelligence brain answers text questions locally on supported Macs. It cannot process screen images.</li>
+        <li>ElevenLabs receives audio for transcription or text for speech when you configure and select it. Apple Speech can contact Apple when on-device recognition is unavailable.</li>
         <li>Composio and other connectors only call the apps you connect, and anything that sends, deletes, or pays asks first.</li>
-        <li>Analytics ships only in a build that was compiled with an analytics key. The downloadable release has none.</li>
+        <li>App analytics is enabled only in builds configured with a PostHog key. The current release workflow does not supply one. Configured events contain counts and bounded error metadata rather than chat text. This build configuration is not a user consent switch.</li>
       </ul>
 
       <h2>This website</h2>
-      <p>getheymate.vercel.app uses Hotjar to see how visitors use the page: which sections they reach, where they click, and anonymised session replays. It sets Hotjar cookies. The page has no forms, and Hotjar masks typed text by default. None of this is in the app. Block it with any content blocker, or opt out at <a href="https://www.hotjar.com/policies/do-not-track/">hotjar.com/policies/do-not-track</a>.</p>
-      <p>The site also sends Hotjar a short event name when someone clicks a download or GitHub link or copies an install command, so we can tell which pages lead to installs. Page counts come from Vercel Web Analytics, which sets no cookies and reports only totals such as pages viewed, referring sites, and countries.</p>
+      <p>getheymate.vercel.app includes Hotjar for page interaction tracking, heatmaps, and session replays. It can set Hotjar cookies. This website tracking is separate from the Mac app. For Hotjar's privacy controls, see <a href="https://www.hotjar.com/policies/do-not-track/">Hotjar's opt-out information</a>.</p>
+      <p>The site also sends Hotjar a short event name when someone clicks a download or GitHub link or copies an install command. These measure interest, not completed installations. Page counts come from Vercel Web Analytics, which sets no cookies and reports only totals such as pages viewed, referring sites, and countries.</p>
 
       <h2>How to delete everything</h2>
-      <p>In the app, clear memory from the Memory section. To remove the local files entirely, quit HeyMate and delete <span class="code">~/Library/Application Support/heymate/</span>. Older versions kept keys in the Keychain; any items named com.heymate.app.connector can be removed in Keychain Access.</p>
+      <p>In the app, clear memory from the Memory section. To remove HeyMate's local application data, stop jobs and routines, quit HeyMate, and delete <span class="code">~/Library/Application Support/heymate/</span>. Workspaces under <span class="code">~/Projects/heymate/</span>, exported files, temporary files, and provider CLI histories are separate. Deleting HeyMate data does not delete copies held by a provider or connected service. Older versions kept keys in the Keychain; any items named com.heymate.app.connector can be removed in Keychain Access.</p>
       <p><a href="index.html">Back to HeyMate</a></p>
     </div>
   </main>
