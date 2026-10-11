@@ -4,8 +4,8 @@
 
 # HeyMate
 
-**Learn your Mac, one step at a time.**<br>
-Ask how to do something in the app you're using. HeyMate points to the next step, explains it out loud, and waits while you try it. A free, open-source Mac companion that works with your Claude or ChatGPT plan through their official CLIs.
+**Learn your software. One step at a time.**<br>
+Ask how to do something in a desktop app or website. HeyMate points to the next step, explains it out loud, and waits while you try it. Free and open source, currently available for macOS. Works with your Claude or ChatGPT plan through their official CLIs.
 
 [![Latest release](https://img.shields.io/github/v/release/UmarSiddiqui/heymate?label=download&color=3380FF&style=flat-square)](https://github.com/UmarSiddiqui/heymate/releases/latest)
 [![Release build](https://img.shields.io/github/actions/workflow/status/UmarSiddiqui/heymate/release.yml?branch=main&label=build&style=flat-square)](https://github.com/UmarSiddiqui/heymate/actions/workflows/release.yml)
@@ -31,7 +31,7 @@ Ask how to do something in the app you're using. HeyMate points to the next step
 
 ## Try a task you want to learn
 
-Open an app, hold <kbd>⌃</kbd> <kbd>⌥</kbd>, and ask **“Walk me through this, one step at a time.”** For example: “Show me how to remove this logo's background in Photopea.” Use a sample image you can share with your AI provider.
+Open a desktop app or website, hold <kbd>⌃</kbd> <kbd>⌥</kbd>, and ask **“Walk me through this, one step at a time.”** For example: “Show me how to remove this logo's background in Photopea.” Use a sample image you can share with your AI provider.
 
 For a multi-step walkthrough, HeyMate shows a plan and points to the first action. Click the target or say “next”; it checks the screen again before explaining the next step. You do the task and learn the controls. Results depend on the selected model and what it can see; stop and correct it if a step is wrong.
 
@@ -39,7 +39,7 @@ Screen guidance needs a vision-capable provider. The optional Apple Intelligence
 
 ## Why HeyMate
 
-- **Help in the app you're using.** Spoken explanations and a cursor that points at the control being discussed. Screen context is captured during active interactions that need it, including each step of a walkthrough.
+- **Help with desktop apps and websites.** Spoken explanations and a cursor that points at the control being discussed. Screen context is captured during active interactions that need it, including each step of a walkthrough.
 - **Use your existing plan.** Claude Code, Codex, or OpenCode with your own sign-in. HeyMate is free; provider usage limits and optional paid services still apply.
 - **Keep control of coding work.** Agents show a read-only plan before execution. Approved jobs get workspace snapshots for undo; external actions are subject to their tool's approval policy. Undo cannot reverse a sent message or an external service change.
 
@@ -81,7 +81,7 @@ Undo snapshots, Terminal takeover, completion receipts, and **Standing Orders**:
 <td width="50%" valign="top">
 
 ### Mates: helpers with a job of their own
-Create a patient design tutor from the Mates view. Give it a name, a job, a personality, a face, its own memory, and a workspace folder. Start with one clear job and tell it how you want it to help.
+Create a patient design tutor from the Mates view. Give it a name, a job, a personality prompt, a face, saved notes, and a workspace folder. Start with one clear job and tell it how you want it to help.
 
 **Routines** run daily at a time you choose or every *N* hours, and results land in that mate's chat.
 
@@ -116,7 +116,7 @@ HeyMate is an early open-source release for macOS 14.2 or later. Current builds 
 1. Download **[HeyMate.dmg](https://github.com/UmarSiddiqui/heymate/releases/latest/download/HeyMate.dmg)** and drag HeyMate into Applications. If macOS blocks the first launch, review the app and use **System Settings → Privacy & Security → Open Anyway** if you choose to proceed.
 2. Grant **Microphone**, **Accessibility**, and **Screen Recording** when setup asks. [Why each permission?](https://getheymate.vercel.app/permissions)
 3. Pick **Claude** or **ChatGPT** and finish the official CLI sign-in in your browser. Provider access and usage limits apply. The **Neither** option uses Apple Intelligence on supported Macs, for text-only questions.
-4. Open an app, hold <kbd>⌃</kbd> <kbd>⌥</kbd>, and ask for a walkthrough.
+4. Open a desktop app or website, hold <kbd>⌃</kbd> <kbd>⌥</kbd>, and ask for a walkthrough.
 
 Alternative install methods:
 
