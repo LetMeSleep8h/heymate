@@ -4,7 +4,7 @@
 
 The combined app, embedded runner, and test targets built successfully with ad-hoc signing. The complete HeyMateTests target passed **1,114 tests in 167 suites**, in **28.368 seconds**. `git diff --check` passed. Independent reviews of creation, consent, response ownership, and private-result delivery found no remaining blocker after the fixes described below.
 
-This local result includes the original EOF fix from PR #14 and all current PR #20 polish. The original #14 commit is being integrated into the branch, rather than reauthoring its patch. Final-head CI is a separate check.
+This local result includes the original EOF fix from PR #14 and all current PR #20 polish. The branch includes the original #14 commit (`5686c14`) through a merge, rather than reauthoring its patch. Final-head CI is a separate check.
 
 **Native acceptance is still pending.** The Mac reports `IOConsoleLocked = Yes`; native accessibility returns no windows and screen capture is blank. Automated tests and a successful app launch do not establish a successful live provider conversation, a completed Photopea walkthrough, or fresh-install behavior. PR #20 must remain draft and unmerged until the patched-app checks below pass.
 
