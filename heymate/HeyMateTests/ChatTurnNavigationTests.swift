@@ -5,6 +5,94 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct ChatTurnNavigationTests {
+    @Test(arguments: ["new", "open", "mate", "delete", "clear", "clearMate"],
+          ["approval", "running", "listening", "finalizing"])
+    func navigationPreservesUnrelatedStateAfterACompletedReply(action: String, interaction: String) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let other = fixture.addMate(name: "Pixel", brain: .onDevice)
+        let otherChat = fixture.addChat(mateID: other.id)
+
+        // Production keeps the completed task referenced. Navigation must
+        // not mistake that old handle for ownership of the new interaction.
+        manager.sendTranscriptToClaudeWithScreenshot(transcript: "Earlier question", shouldCaptureScreen: false)
+        let oldTask = try #require(manager.currentResponseTask)
+        try await fixture.client.waitForRequest()
+        fixture.client.finish(text: "")
+        await oldTask.value
+        #expect(manager.currentResponseTask != nil)
+        #expect(!manager.isResponseInFlight)
+
+        let runID = UUID()
+        switch interaction {
+        case "approval":
+            manager.dispatch(.agentStarted(runID))
+            manager.dispatch(.approvalRequested(runID))
+        case "running": manager.dispatch(.agentStarted(runID))
+        case "listening": manager.dispatch(.startListening(.talk))
+        default:
+            manager.dispatch(.startListening(.talk))
+            manager.dispatch(.finishListening)
+        }
+        manager.isSubscriptionVoiceChatActive = true
+        let expectedState = manager.state
+        let expectedBusyReason = manager.typedMessageBusyReason
+        let expectedForegroundAgent = manager.isForegroundAgentActive
+        switch action {
+        case "new": manager.startNewChat()
+        case "open": manager.openChat(id: otherChat.id)
+        case "mate": manager.openMate(id: other.id)
+        case "delete": manager.deleteChat(id: manager.currentChat.id)
+        case "clear": manager.clearAllChats()
+        default: manager.clearChats(forMateID: try #require(manager.currentChat.mateID))
+        }
+        await Task.yield()
+        #expect(manager.state == expectedState)
+        #expect(manager.typedMessageBusyReason == expectedBusyReason)
+        #expect(manager.isForegroundAgentActive == expectedForegroundAgent)
+        #expect(manager.isSubscriptionVoiceChatActive)
+    }
+
+    @Test func navigationDuringNewVoiceInputInvalidatesOldReplyWithoutIdlingInput() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        manager.sendTranscriptToClaudeWithScreenshot(transcript: "Earlier question", shouldCaptureScreen: false)
+        let oldTask = try #require(manager.currentResponseTask)
+        try await fixture.client.waitForRequest()
+        // The Talk shortcut cancels the previous task before starting the
+        // microphone. This provider deliberately has not finished unwinding.
+        oldTask.cancel()
+        manager.dispatch(.startListening(.talk))
+        manager.isSubscriptionVoiceChatActive = true
+        manager.startNewChat()
+        try await fixture.client.emitChunk("Stale reply")
+        fixture.client.finish(text: "Stale answer")
+        await oldTask.value
+        #expect(manager.currentResponseTask == nil)
+        #expect(manager.currentChat.messages.isEmpty)
+        #expect(manager.streamingAssistantText.isEmpty)
+        #expect(manager.state == .listening(.talk))
+        #expect(manager.isSubscriptionVoiceChatActive)
+    }
+
+    @Test func navigationClearsLingeringGuidanceWithoutResettingAgentApproval() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let manager = fixture.manager
+        let runID = UUID()
+        manager.dispatch(.agentStarted(runID))
+        manager.dispatch(.approvalRequested(runID))
+        manager.cursorCaptionText = "Earlier lesson step"
+        manager.isGuidancePointerHeld = true
+        manager.startNewChat()
+        #expect(manager.cursorCaptionText.isEmpty)
+        #expect(!manager.isGuidancePointerHeld)
+        #expect(manager.state == .waitingForApproval(runID))
+        #expect(manager.isForegroundAgentActive)
+    }
+
     @Test func navigationBeforeTaskStartsCannotAppendOldQuestion() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
@@ -75,15 +163,13 @@ struct ChatTurnNavigationTests {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
         let manager = fixture.manager
-        var approval: Bool?
         let request = ConnectorToolApprovalRequest(
             connectorDisplayName: "Test connector", toolName: "test_action",
             argumentsSummary: "No action will run", risk: .externalSideEffect
         )
-        let task = Task {
-            approval = await manager.connectorToolCoordinator.requestApproval(for: request)
-        }
-        manager.currentResponseTask = task
+        fixture.client.approvalRequest = (manager.connectorToolCoordinator, request)
+        manager.sendTranscriptToClaudeWithScreenshot(transcript: "Test approval", shouldCaptureScreen: false)
+        let task = try #require(manager.currentResponseTask)
         for _ in 0..<100 {
             if manager.connectorToolCoordinator.pendingRequest != nil { break }
             await Task.yield()
@@ -91,7 +177,7 @@ struct ChatTurnNavigationTests {
         #expect(manager.connectorToolCoordinator.pendingRequest?.id == request.id)
         manager.startNewChat()
         await task.value
-        #expect(approval == false)
+        #expect(fixture.client.approvalDecision == false)
         #expect(manager.connectorToolCoordinator.pendingRequest == nil)
     }
 
@@ -275,6 +361,8 @@ private final class SuspendedConversationClient: ToolCallingConversationClient {
     var model = "navigation-test"
     struct Request { let systemPrompt: String; let userPrompt: String }
     var requests: [Request] = []
+    var approvalRequest: (ConnectorToolCoordinator, ConnectorToolApprovalRequest)?
+    var approvalDecision: Bool?
     private enum Command {
         case chunk(String), tool(AssistantToolCall), finish(String), fail(Error)
     }
@@ -294,6 +382,10 @@ private final class SuspendedConversationClient: ToolCallingConversationClient {
                                availableTools: [AssistantToolDefinition], onTextChunk: @MainActor @Sendable (String) -> Void,
                                onToolCallRequested: @MainActor @Sendable (AssistantToolCall) async -> (text: String, isError: Bool)) async throws -> (text: String, duration: TimeInterval) {
         requests.append(Request(systemPrompt: systemPrompt, userPrompt: userPrompt))
+        if let (coordinator, request) = approvalRequest {
+            approvalDecision = await coordinator.requestApproval(for: request)
+            return ("Approval test completed", 0)
+        }
         // Deliberately ignores task cancellation to model a provider that
         // still emits queued callbacks and terminal events after Stop.
         while true {

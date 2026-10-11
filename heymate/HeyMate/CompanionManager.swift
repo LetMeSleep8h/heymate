@@ -2073,10 +2073,23 @@ final class CompanionManager: ObservableObject {
     /// already writing to its own session keeps running in that session.
     func cancelForegroundChatTurnForNavigation() {
         guard backgroundRoutineSession == nil else { return }
-        isSubscriptionVoiceChatActive = false
         activeWalkthrough = nil
         disarmWalkthroughClickMonitor()
-        cancelInFlightChatTurn()
+        guard isResponseInFlight || isGuidancePointerHeld || voiceSynthesisClient.isPlaying
+                || !cursorCaptionText.isEmpty else { return }
+
+        // An older response can still be unwinding after voice input or an
+        // agent takes over. Invalidate its callbacks without idling the new
+        // interaction. A finished response task alone owns no state.
+        let resetInteractionState: Bool
+        switch state {
+        case .agentRunning, .waitingForApproval, .listening, .finalizingTranscript:
+            resetInteractionState = false
+        default:
+            resetInteractionState = true
+        }
+        if resetInteractionState { isSubscriptionVoiceChatActive = false }
+        cancelInFlightChatTurn(resetInteractionState: resetInteractionState)
     }
 
     private func ownsCurrentResponse(_ completion: HeyMateRequestCompletionState) -> Bool {
@@ -2085,7 +2098,7 @@ final class CompanionManager: ObservableObject {
 
     /// Stops the open reply: the in-flight task, streamed text, and speech.
     /// Returns to idle so the composer cannot stay on thinking, capturing, or speaking.
-    func cancelInFlightChatTurn() {
+    func cancelInFlightChatTurn(resetInteractionState: Bool = true) {
         let completion = currentResponseCompletion
         completion?.didComplete = true
         currentResponseTask?.cancel()
@@ -2103,6 +2116,7 @@ final class CompanionManager: ObservableObject {
         } else if activeHandoffMateID != nil {
             completeActiveHandoff(succeeded: false)
         }
+        guard resetInteractionState else { return }
         dispatch(.cancel)
         // The reply task calls beginContextCapture before it notices cancellation.
         // If that prefix runs after this return, idle those states again.
