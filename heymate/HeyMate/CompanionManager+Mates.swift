@@ -52,6 +52,7 @@ extension CompanionManager: MateRoutineRunning {
 
     func openMate(id: UUID) {
         guard let mate = mateDirectory.mates.first(where: { $0.id == id }) else { return }
+        cancelForegroundChatTurnForNavigation()
         persistCurrentChatIfNeeded()
         mateDirectory.activeMateID = id
         activeMateID = id
@@ -100,7 +101,7 @@ extension CompanionManager: MateRoutineRunning {
     /// Starts the approval-gated agent run a mate asked for with `[WORK: ...]`.
     /// A specialist works in its own folder; First Mate has none, so it uses
     /// the sandbox run. Either way the run plans first and waits for approval.
-    func startMateWork(_ tasks: [String], mate: Mate?) {
+    func startMateWork(_ tasks: [String], mate: Mate?, brain: AgentBrain? = nil) {
         guard !tasks.isEmpty else { return }
         var workspaceURL: URL?
         if let mate, !mate.conductsOthers {
@@ -115,8 +116,8 @@ extension CompanionManager: MateRoutineRunning {
             return
         }
         for task in tasks {
-            let runID = workspaceURL.map { startAttachedAgent(prompt: task, workspaceURL: $0) }
-                ?? startSandboxAgent(prompt: task)
+            let runID = workspaceURL.map { startAttachedAgent(prompt: task, workspaceURL: $0, brain: brain) }
+                ?? startSandboxAgent(prompt: task, brain: brain)
             if let runID { mateRunOwners[runID] = ownerID }
         }
     }
@@ -218,8 +219,10 @@ extension CompanionManager: MateRoutineRunning {
         let openChatBelongs = (currentChat.mateID ?? mateDirectory.defaultMateID) == id
         let viewingDeletedMate = openChatBelongs || activeMateID == id
         let routineBelongs = activeRoutineTurn?.mateID == id
-        if openChatBelongs || routineBelongs {
+        if routineBelongs || activeHandoffMateID == id {
             cancelInFlightChatTurn()
+        } else if openChatBelongs {
+            cancelForegroundChatTurnForNavigation()
         }
         if routineBelongs {
             clearRoutineDelivery()
@@ -233,6 +236,10 @@ extension CompanionManager: MateRoutineRunning {
             chatHistoryStore.delete(id: session.id)
         }
         mateDirectory.routineStore.deleteAll(mateID: id)
+        for item in memoryRepository.loadAll() where item.mateID == id {
+            memoryRepository.delete(id: item.id)
+        }
+        memoryItems = memoryRepository.loadAll()
         if let face = mateDirectory.mates.first(where: { $0.id == id })?.faceAssetName {
             MateFaceStore.deleteIfCustom(face)
         }
@@ -270,7 +277,7 @@ extension CompanionManager: MateRoutineRunning {
         syncMatePublications()
     }
 
-    private func applyStoredPreferences(of mate: Mate) {
+    func applyStoredPreferences(of mate: Mate) {
         MatePreferenceWriteBack.isApplying = true
         defer { MatePreferenceWriteBack.isApplying = false }
         if let raw = mate.brainRawValue, let brain = AgentBrain(rawValue: raw), selectedBrain != brain {

@@ -80,6 +80,8 @@ final class CompanionManager: ObservableObject {
     /// Mates and their routines. Chats stay in `chatHistoryStore`.
     let mateDirectory: MateDirectory
     let mateRoutineScheduler: MateRoutineScheduler
+    /// A deterministic client can exercise turn ownership without contacting a provider.
+    private let conversationClientOverride: (any VisionConversationClient)?
 
     @Published var mates: [Mate] = []
     @Published var routines: [MateRoutine] = []
@@ -115,8 +117,10 @@ final class CompanionManager: ObservableObject {
         standingOrderRepository: FileStandingOrderRepository? = nil,
         agentUndoLedger: FileAgentUndoLedger? = nil,
         mateStore: FileMateStore? = nil,
-        routineStore: FileMateRoutineStore? = nil
+        routineStore: FileMateRoutineStore? = nil,
+        conversationClient: (any VisionConversationClient)? = nil
     ) {
+        self.conversationClientOverride = conversationClient
         let repository = memoryRepository
             ?? FileMemoryRepository(fileURL: FileMemoryRepository.appSupportFileURL())
         self.memoryRepository = repository
@@ -493,10 +497,12 @@ final class CompanionManager: ObservableObject {
 
         var outcomeLines: [String] = []
         for parsed in parsedActions {
+            guard !Task.isCancelled else { return nil }
             let outcome = await computerUseCoordinator.perform(
                 parsed.action,
                 statedReason: ComputerUseTagParser.strippingActionTags(from: responseText)
             )
+            guard !Task.isCancelled else { return nil }
             outcomeLines.append(outcome)
         }
         return outcomeLines.joined(separator: "\n")
@@ -1094,7 +1100,20 @@ final class CompanionManager: ObservableObject {
 
     /// The brain used for every conversation-style request this turn.
     var activeConversationClient: any VisionConversationClient {
-        switch selectedBrain {
+        conversationClient(for: selectedBrain)
+    }
+
+    /// A background mate keeps its saved brain while the visible chat's
+    /// preferences can change independently.
+    var conversationBrainForTurn: AgentBrain {
+        guard backgroundRoutineSession != nil,
+              let rawValue = speakingMateForTurn()?.brainRawValue,
+              let brain = AgentBrain(rawValue: rawValue) else { return selectedBrain }
+        return brain
+    }
+
+    private func conversationClient(for brain: AgentBrain) -> any VisionConversationClient {
+        switch brain {
         case .openCode:
             return openCodeClient
         case .customAPI:
@@ -1145,9 +1164,10 @@ final class CompanionManager: ObservableObject {
     /// follow-ups continue one CLI session instead of starting cold; other
     /// callers of `activeConversationClient` (dictation rewrite, onboarding)
     /// stay one-off and never touch that session.
-    private func conversationClient(hasScreenContext: Bool) -> any VisionConversationClient {
+    private func conversationClient(hasScreenContext: Bool, brain: AgentBrain? = nil) -> any VisionConversationClient {
         _ = hasScreenContext
-        let client = activeConversationClient
+        if let conversationClientOverride { return conversationClientOverride }
+        let client = conversationClient(for: brain ?? conversationBrainForTurn)
         guard let subscriptionClient = client as? SubscriptionCLIVisionClient,
               backgroundRoutineSession == nil else { return client }
         return subscriptionClient.boundToConversation(
@@ -1607,14 +1627,14 @@ final class CompanionManager: ObservableObject {
                 mate: mate,
                 others: mateDirectory.mates,
                 memoryExcerpts: SubscriptionMemoryIndex.excerpts(
-                    root: FileManager.default.homeDirectoryForCurrentUser
+                    root: HeyMateDataDirectory.homeURL
                 ),
                 meetingNotesAreOn: isRecordingMeeting
             )
             return [brief, MateAgentBrief.promptBlock(mate: mate, runsCanOperateApps: runsCanOperateApps)].joined(separator: "\n")
         }
         let blocks = [
-            MateSoul.promptBlock(name: mate.name, job: mate.job, soul: mate.soul),
+            MateSoul.promptBlock(name: mate.name, job: mate.job, soul: mate.soul, memoryNote: mate.memoryNote),
             MateMessagingBrief.promptBlock(sender: mate, mates: mateDirectory.mates),
             MateAgentBrief.promptBlock(mate: mate, runsCanOperateApps: runsCanOperateApps)
         ].compactMap { $0 }
@@ -1677,7 +1697,7 @@ final class CompanionManager: ObservableObject {
     /// speaks again so a new response can begin immediately.
     var currentResponseTask: Task<Void, Never>?
     /// Guards stale Talk completions after a newer turn cancelled the task.
-    private var currentResponseCompletion: HeyMateRequestCompletionState?
+    private(set) var currentResponseCompletion: HeyMateRequestCompletionState?
 
     /// Whether a reply is still being produced. `currentResponseTask` keeps
     /// pointing at a finished turn, so it alone cannot answer this: after the
@@ -1932,17 +1952,14 @@ final class CompanionManager: ObservableObject {
             .map(\.skill)
     }
 
-    private var rollingSummaryItemId: UUID?
 
     func deleteMemory(id: UUID) {
         memoryRepository.delete(id: id)
-        if id == rollingSummaryItemId { rollingSummaryItemId = nil }
         memoryItems = memoryRepository.loadAll()
     }
 
     func clearAllMemory() {
         memoryRepository.deleteAll()
-        rollingSummaryItemId = nil
         memoryItems = []
         HeyMateLog.log("🧹 All durable memory cleared")
     }
@@ -1974,6 +1991,7 @@ final class CompanionManager: ObservableObject {
     }
 
     func startNewChat() {
+        cancelForegroundChatTurnForNavigation()
         persistCurrentChatIfNeeded()
         var session = ChatSession.empty()
         session.mateID = activeMateID ?? mateDirectory.defaultMateID
@@ -1983,19 +2001,29 @@ final class CompanionManager: ObservableObject {
     }
 
     func openChat(id: UUID) {
-        persistCurrentChatIfNeeded()
+        guard id != currentChat.id else { return }
         guard let session = chatHistoryStore.session(id: id) ?? savedChats.first(where: { $0.id == id }) else {
             return
         }
+        cancelForegroundChatTurnForNavigation()
+        persistCurrentChatIfNeeded()
         currentChat = session
         streamingAssistantText = ""
         let mateID = session.mateID ?? mateDirectory.defaultMateID
         mateDirectory.activeMateID = mateID
         mateDirectory.markRead(id: mateID)
         syncMatePublications()
+        if let mate = mateDirectory.mates.first(where: { $0.id == mateID }) {
+            applyStoredPreferences(of: mate)
+        }
     }
 
     func deleteChat(id: UUID) {
+        if backgroundRoutineSession?.id == id {
+            cancelInFlightChatTurn()
+        } else if currentChat.id == id {
+            cancelForegroundChatTurnForNavigation()
+        }
         chatHistoryStore.delete(id: id)
         savedChats = chatHistoryStore.loadAll()
         if currentChat.id == id {
@@ -2007,6 +2035,10 @@ final class CompanionManager: ObservableObject {
     }
 
     func clearAllChats() {
+        // Deleting all history also stops background delivery, otherwise
+        // its next token or result would recreate a chat the user erased.
+        if backgroundRoutineSession != nil { cancelInFlightChatTurn() }
+        cancelForegroundChatTurnForNavigation()
         chatHistoryStore.deleteAll()
         savedChats = []
         var session = ChatSession.empty()
@@ -2037,6 +2069,20 @@ final class CompanionManager: ObservableObject {
         return currentResponseCompletion?.didComplete != true
     }
 
+    /// Navigating only interrupts the visible reply. A routine or handoff
+    /// already writing to its own session keeps running in that session.
+    func cancelForegroundChatTurnForNavigation() {
+        guard backgroundRoutineSession == nil else { return }
+        isSubscriptionVoiceChatActive = false
+        activeWalkthrough = nil
+        disarmWalkthroughClickMonitor()
+        cancelInFlightChatTurn()
+    }
+
+    private func ownsCurrentResponse(_ completion: HeyMateRequestCompletionState) -> Bool {
+        currentResponseCompletion === completion && !completion.didComplete
+    }
+
     /// Stops the open reply: the in-flight task, streamed text, and speech.
     /// Returns to idle so the composer cannot stay on thinking, capturing, or speaking.
     func cancelInFlightChatTurn() {
@@ -2046,8 +2092,16 @@ final class CompanionManager: ObservableObject {
         currentResponseTask = nil
         streamingAssistantText = ""
         voiceSynthesisClient.stopPlayback()
+        isGuidancePointerHeld = false
+        cursorCaptionTask?.cancel()
+        cursorCaptionTask = nil
+        cursorCaptionText = ""
+        cursorCaptionProgress = nil
+        clearPointingTarget()
         if activeRoutineTurn != nil {
             completeActiveRoutineTurn(.cancelled)
+        } else if activeHandoffMateID != nil {
+            completeActiveHandoff(succeeded: false)
         }
         dispatch(.cancel)
         // The reply task calls beginContextCapture before it notices cancellation.
@@ -2148,7 +2202,7 @@ final class CompanionManager: ObservableObject {
         lingerCursorCaption(captionText)
         persistCurrentChatIfNeeded()
         if isRecordingMeeting, backgroundRoutineSession == nil {
-            meetingNotes.append(speaker: "HeyMate", text: trimmed)
+            meetingNotes.append(speaker: speakingMateForTurn()?.name ?? Mate.defaultName, text: trimmed)
         }
     }
 
@@ -2169,34 +2223,22 @@ final class CompanionManager: ObservableObject {
         streamingAssistantText = ""
     }
 
-    /// Replaces the single rolling session-summary item with a fresh digest
+    /// Replaces this mate's rolling session-summary item with a fresh digest
     /// of recent exchanges. One item instead of one-per-turn keeps the list
     /// inspectable rather than spammy.
     private func updateRollingSessionSummary() {
-        guard rememberConversationsEnabled else { return }
+        guard rememberConversationsEnabled, let mate = speakingMateForTurn() else { return }
 
         let recentExchanges = conversationHistory.suffix(6)
         guard !recentExchanges.isEmpty else { return }
 
         let digest = recentExchanges.map { exchange in
-            "user: \(exchange.userTranscript)\nheymate: \(exchange.assistantResponse)"
+            "user: \(exchange.userTranscript)\n\(mate.name): \(exchange.assistantResponse)"
         }
         .joined(separator: "\n---\n")
         let truncated = String(digest.prefix(800))
 
-        if let existingId = rollingSummaryItemId {
-            memoryRepository.delete(id: existingId)
-            rollingSummaryItemId = nil
-        }
-
-        let summary = MemoryItem(
-            id: UUID(),
-            kind: .sessionSummary,
-            text: truncated,
-            createdAt: Date()
-        )
-        memoryRepository.append(summary)
-        rollingSummaryItemId = summary.id
+        memoryRepository.updateSessionSummary(mateID: mate.id, text: truncated)
         memoryItems = memoryRepository.loadAll()
     }
 
@@ -2207,7 +2249,7 @@ final class CompanionManager: ObservableObject {
             "- [\(item.kind.rawValue)] \(item.text.replacingOccurrences(of: "\n", with: " "))"
         }
         return """
-        things you remember from earlier (user-approved, deletable in settings):
+        things you remember from earlier (saved on this Mac, deletable in settings):
         \(lines.joined(separator: "\n"))
         """
     }
@@ -3386,11 +3428,12 @@ final class CompanionManager: ObservableObject {
                 sections.append("Loaded skills:\n" + skillLines.joined(separator: "\n"))
 
             case .memory:
-                guard !memoryItems.isEmpty else {
+                let scopedMemory = MemoryContext.items(memoryItems, for: speakingMateForTurn()?.id)
+                guard !scopedMemory.isEmpty else {
                     sections.append("Remembered notes: none.")
                     continue
                 }
-                let memoryLines = memoryItems.map { "- \($0.text)" }
+                let memoryLines = scopedMemory.map { "- \($0.text)" }
                 sections.append("Remembered notes:\n" + memoryLines.joined(separator: "\n"))
 
             case .clipboard:
@@ -3584,22 +3627,28 @@ final class CompanionManager: ObservableObject {
         voiceSynthesisClient.stopPlayback()
 
         let completion = HeyMateRequestCompletionState()
+        let speakingMate = speakingMateForTurn()
+        // Capture before scheduling: navigation can run before this task
+        // starts, as well as while connector activation is suspended.
+        let turnBrain = conversationBrainForTurn
         currentResponseCompletion = completion
         currentResponseTask = Task {
             // Every exit, early returns included, ends the turn. Runs after
             // the closing `guard !completion.didComplete` below, so the
             // normal ending still dispatches `interactionFinished` first.
             defer { completion.didComplete = true }
+            // A cancelled task can first be scheduled after navigation. It
+            // must not append the old question into the newly opened chat.
+            guard !Task.isCancelled, ownsCurrentResponse(completion) else { return }
             appendUserMessage(
                 transcript,
                 attachmentNames: imageAttachments.map(\.fileName)
             )
             streamingAssistantText = ""
-
             dispatch(.beginContextCapture)
 
             do {
-                await awaitConnectorActivation()
+                if conversationClientOverride == nil { await awaitConnectorActivation() }
                 guard !Task.isCancelled, !completion.didComplete else { return }
 
                 let screenCaptures: [ScreenSnapshot]
@@ -3650,7 +3699,7 @@ final class CompanionManager: ObservableObject {
                 if let spatialFragment {
                     promptParts.append(spatialFragment)
                 }
-                if let memoryBlock = Self.memoryPromptBlock(items: memoryItems) {
+                if let memoryBlock = Self.memoryPromptBlock(items: MemoryContext.items(memoryItems, for: speakingMate?.id)) {
                     promptParts.append(memoryBlock)
                 }
                 if !screenCaptures.isEmpty, let walkthroughBlock = walkthroughPromptBlock() {
@@ -3661,6 +3710,7 @@ final class CompanionManager: ObservableObject {
                     promptParts.append(topicAnchor)
                 }
                 promptParts.append(contentsOf: await macAccountContextBlocks(for: transcript))
+                guard !Task.isCancelled, ownsCurrentResponse(completion) else { return }
                 if !imageAttachments.isEmpty {
                     promptParts.append(
                         "The user explicitly attached \(imageAttachments.count) image(s). Analyze those attachments as primary context. They are not live screens, so never emit pointer coordinates for them."
@@ -3673,7 +3723,9 @@ final class CompanionManager: ObservableObject {
                     transcript: transcript
                 )
 
-                let talkClient = conversationClient(hasScreenContext: !labeledImages.isEmpty)
+                // Resolve after connector activation so the client sees live
+                // tools, using the brain captured before any navigation.
+                let talkClient = conversationClient(hasScreenContext: !labeledImages.isEmpty, brain: turnBrain)
                 // Only a client that can actually run a tool-use loop gets
                 // handed tools — advertising `start_timer` to a backend that
                 // has no way to call it would just teach the model to lie
@@ -3700,7 +3752,6 @@ final class CompanionManager: ObservableObject {
                     )
                     : ComposioAgentAttachment.unreachablePromptBlock()
 
-                let speakingMate = speakingMateForTurn()
                 let effectiveSystemPrompt = BehaviorContract.combinedSystemPrompt(
                     voicePersonaPrompt: Self.companionResponseSystemPrompt(isSilentModeEnabled: isSilentModeEnabled),
                     matchedSkillsBlock: Self.skillsPromptBlock(skills: matchedSkills),
@@ -3719,13 +3770,17 @@ final class CompanionManager: ObservableObject {
                         userPrompt: promptParts.joined(separator: "\n\n"),
                         availableTools: availableTalkTools.map(\.toolDefinition),
                         onTextChunk: { [weak self] chunk in
-                            self?.publishStreamingAssistantText(GuidedReplyParser.streamingDisplayText(
+                            guard let self, self.ownsCurrentResponse(completion) else { return }
+                            self.publishStreamingAssistantText(GuidedReplyParser.streamingDisplayText(
                                 VisualActionParser.extract(from: chunk).spokenText
                             ))
                         },
                         onToolCallRequested: { [weak self] toolCall in
                             guard let self else { return ("HeyMate is no longer available.", true) }
-                            return await self.executeTalkTool(toolCall, availableTalkTools: availableTalkTools)
+                            guard !Task.isCancelled, self.ownsCurrentResponse(completion) else {
+                                return ("This reply was cancelled. No action was taken.", true)
+                            }
+                            return await self.executeTalkTool(toolCall, availableTalkTools: availableTalkTools, completion: completion)
                         }
                     )
                 } else {
@@ -3735,7 +3790,8 @@ final class CompanionManager: ObservableObject {
                         conversationHistory: historyForAPI,
                         userPrompt: promptParts.joined(separator: "\n\n"),
                         onTextChunk: { [weak self] chunk in
-                            self?.publishStreamingAssistantText(GuidedReplyParser.streamingDisplayText(
+                            guard let self, self.ownsCurrentResponse(completion) else { return }
+                            self.publishStreamingAssistantText(GuidedReplyParser.streamingDisplayText(
                                 VisualActionParser.extract(from: chunk).spokenText
                             ))
                         }
@@ -3767,7 +3823,7 @@ final class CompanionManager: ObservableObject {
                 let handoff = MateHandoffParser.extract(
                     from: withoutActions,
                     mates: mateDirectory.mates,
-                    sender: speakingMateForTurn(),
+                    sender: speakingMate,
                     senderHops: activeHandoffMateID == nil ? 0 : activeHandoffHops
                 )
                 if !handoff.handoffs.isEmpty {
@@ -3775,8 +3831,6 @@ final class CompanionManager: ObservableObject {
                 }
                 let work = MateWorkParser.extract(from: handoff.spokenText)
                 let spokenText = work.spokenText
-                startMateWork(work.tasks, mate: speakingMateForTurn())
-
                 appendAssistantMessage(spokenText)
                 HeyMateLog.log("🧠 Conversation history: \(conversationHistory.count) exchanges")
                 updateRollingSessionSummary()
@@ -3785,12 +3839,14 @@ final class CompanionManager: ObservableObject {
 
                 if AgentEscalation.shouldEscalate(responseText: spokenText, transcript: transcript) {
                     completion.didComplete = true
+                    startMateWork(work.tasks, mate: speakingMate, brain: turnBrain)
                     // A mate that answered "can't" instead of writing [WORK: ...]
                     // still gets its run, in its own folder.
                     if work.tasks.isEmpty {
                         startMateWork(
                             [AgentEscalation.agentInstruction(from: transcript)],
-                            mate: speakingMateForTurn()
+                            mate: speakingMate,
+                            brain: turnBrain
                         )
                     }
                     if activeRoutineTurn != nil {
@@ -3799,6 +3855,18 @@ final class CompanionManager: ObservableObject {
                     return
                 }
 
+                // Finish background actions before clearing their delivery
+                // session; otherwise their outcome lands in the open chat.
+                if !isGuidedPlayback,
+                   let actionOutcome = await performComputerUseDirectives(in: extracted.spokenText) {
+                    guard !Task.isCancelled, ownsCurrentResponse(completion) else { return }
+                    appendAssistantMessage(actionOutcome)
+                }
+                guard !Task.isCancelled, ownsCurrentResponse(completion) else { return }
+
+                // Launching work leaves/cancels the Talk pipeline. Finish
+                // delivery bookkeeping below even after that deliberate exit.
+                startMateWork(work.tasks, mate: speakingMate, brain: turnBrain)
                 if activeRoutineTurn != nil {
                     completeActiveRoutineTurn(.success(spokenText))
                 } else if activeHandoffMateID != nil {
@@ -3811,6 +3879,7 @@ final class CompanionManager: ObservableObject {
                         } catch is CancellationError {
                             throw CancellationError()
                         } catch {
+                            guard !Task.isCancelled, ownsCurrentResponse(completion) else { return }
                             Self.recordPipelineError(error, category: .textToSpeech)
                             speakPipelineFailure(error)
                         }
@@ -3824,25 +3893,22 @@ final class CompanionManager: ObservableObject {
                     } catch is CancellationError {
                         throw CancellationError()
                     } catch {
+                        guard !Task.isCancelled, ownsCurrentResponse(completion) else { return }
                         Self.recordPipelineError(error, category: .textToSpeech)
                         speakPipelineFailure(error)
                         isSubscriptionVoiceChatActive = false
                     }
                 }
 
-                // A routine or background turn is not played step by step,
-                // so its directives still run here, after the reply.
-                if !isGuidedPlayback,
-                   let actionOutcome = await performComputerUseDirectives(in: extracted.spokenText) {
-                    appendAssistantMessage(actionOutcome)
-                }
             } catch is CancellationError {
+                guard ownsCurrentResponse(completion) else { return }
                 if activeRoutineTurn != nil {
                     completeActiveRoutineTurn(.cancelled)
                 } else if activeHandoffMateID != nil {
                     completeActiveHandoff(succeeded: false)
                 }
             } catch {
+                guard !Task.isCancelled, ownsCurrentResponse(completion) else { return }
                 Self.recordPipelineError(error, category: .responsePipeline)
                 dispatch(.fail(error.localizedDescription))
                 if activeRoutineTurn != nil {
@@ -3902,7 +3968,8 @@ final class CompanionManager: ObservableObject {
     /// sentence.
     private func executeTalkTool(
         _ toolCall: AssistantToolCall,
-        availableTalkTools: [TalkTool]
+        availableTalkTools: [TalkTool],
+        completion: HeyMateRequestCompletionState
     ) async -> (text: String, isError: Bool) {
         guard let matchedTool = TalkToolCatalog.tool(named: toolCall.toolName, in: availableTalkTools) else {
             return ("No tool named \(toolCall.toolName).", true)
@@ -3919,7 +3986,8 @@ final class CompanionManager: ObservableObject {
                 connectorIdentifier: connectorIdentifier,
                 connectorDisplayName: connectorDisplayName,
                 maximumRisk: maximumRisk,
-                arguments: arguments
+                arguments: arguments,
+                responseIsCurrent: { self.ownsCurrentResponse(completion) }
             )
         }
     }
@@ -3977,7 +4045,8 @@ final class CompanionManager: ObservableObject {
         connectorIdentifier: String,
         connectorDisplayName: String,
         maximumRisk: ConnectorToolRisk,
-        arguments: [String: Any]
+        arguments: [String: Any],
+        responseIsCurrent: (() -> Bool)? = nil
     ) async -> (text: String, isError: Bool) {
         guard isConnectorEnabledForChat(connectorIdentifier) else {
             return ("That connector is disabled for this chat.", true)
@@ -4009,11 +4078,14 @@ final class CompanionManager: ObservableObject {
                     risk: risk
                 )
             )
-            guard wasApproved else {
+            guard wasApproved, !Task.isCancelled, responseIsCurrent?() != false else {
                 return ("The user did not approve this action.", true)
             }
         }
 
+        guard !Task.isCancelled, responseIsCurrent?() != false else {
+            return ("This reply was cancelled. No action was taken.", true)
+        }
         do {
             let result = try await connectorRuntime.callTool(namespacedID: namespacedToolID, arguments: arguments)
             return (result.textContent, result.isError)
@@ -4322,18 +4394,19 @@ final class CompanionManager: ObservableObject {
     }
 
     @discardableResult
-    func startSandboxAgent(prompt: String, executor: HeadlessExecutor? = nil) -> UUID? {
+    func startSandboxAgent(prompt: String, executor: HeadlessExecutor? = nil, brain: AgentBrain? = nil) -> UUID? {
         leaveTalkPipelineForAgent()
+        let brain = brain ?? selectedBrain
         let explicitlyRequestedExecutor = HeadlessExecutor.explicitlyRequested(in: prompt)
-        if selectedBrain.executor == nil, executor == nil, explicitlyRequestedExecutor == nil {
-            agentRevealErrorText = selectedBrain.unavailableReason ?? "Pick Claude, Codex, or OpenCode as the brain first."
+        if brain.executor == nil, executor == nil, explicitlyRequestedExecutor == nil {
+            agentRevealErrorText = brain.unavailableReason ?? "Pick Claude, Codex, or OpenCode as the brain first."
             speakLine("that brain doesn't run agents. pick claude, codex, or opencode.")
             shouldRevealAgentsTab = true
             return nil
         }
         let resolvedExecutor = executor
             ?? explicitlyRequestedExecutor
-            ?? selectedBrain.executor
+            ?? brain.executor
             ?? defaultHeadlessExecutor
         HeyMateLog.log("🤖 Agent: starting sandbox (\(resolvedExecutor.displayName))")
         let runID = agentLauncher.startSandbox(
@@ -4368,18 +4441,19 @@ final class CompanionManager: ObservableObject {
     }
 
     @discardableResult
-    func startAttachedAgent(prompt: String, workspaceURL: URL, executor: HeadlessExecutor? = nil) -> UUID? {
+    func startAttachedAgent(prompt: String, workspaceURL: URL, executor: HeadlessExecutor? = nil, brain: AgentBrain? = nil) -> UUID? {
         leaveTalkPipelineForAgent()
+        let brain = brain ?? selectedBrain
         let explicitlyRequestedExecutor = HeadlessExecutor.explicitlyRequested(in: prompt)
-        if selectedBrain.executor == nil, executor == nil, explicitlyRequestedExecutor == nil {
-            agentRevealErrorText = selectedBrain.unavailableReason ?? "Pick Claude, Codex, or OpenCode as the brain first."
+        if brain.executor == nil, executor == nil, explicitlyRequestedExecutor == nil {
+            agentRevealErrorText = brain.unavailableReason ?? "Pick Claude, Codex, or OpenCode as the brain first."
             speakLine("that brain doesn't run agents. pick claude, codex, or opencode.")
             shouldRevealAgentsTab = true
             return nil
         }
         let resolvedExecutor = executor
             ?? explicitlyRequestedExecutor
-            ?? selectedBrain.executor
+            ?? brain.executor
             ?? defaultHeadlessExecutor
         let runID = agentLauncher.startAttached(
             prompt: prompt,

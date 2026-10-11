@@ -805,9 +805,8 @@ struct MateHomeView: View {
         return ChatMessageHoverRow { isHovered in
             HStack(alignment: .top, spacing: 0) {
                 if isUser { Spacer(minLength: 48) }
-                // No name or face on each reply: the header already says
-                // who this chat is with.
                 VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
+                    if !isUser { assistantIdentity }
                     if let names = message.attachmentNames, !names.isEmpty {
                         ForEach(names, id: \.self) { name in
                             Label(name, systemImage: "photo")
@@ -853,9 +852,25 @@ struct MateHomeView: View {
     }
 
     private var streamingRow: some View {
-        HStack {
-            ChatMarkdownText(text: companionManager.streamingAssistantText)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                assistantIdentity
+                ChatMarkdownText(text: companionManager.streamingAssistantText)
+            }
             Spacer(minLength: 48)
+        }
+    }
+
+    private var assistantIdentity: some View {
+        HStack(spacing: 6) {
+            if let mate = activeMate {
+                MateFaceView(mate: mate, size: 18)
+                    .accessibilityHidden(true)
+            }
+            Text(activeMate?.name ?? Mate.defaultName)
+                .font(DS.Fonts.caption)
+                .foregroundColor(DS.Colors.textSecondary)
+                .lineLimit(1)
         }
     }
 
