@@ -4,11 +4,10 @@
 
 # HeyMate
 
-**The AI buddy that lives in your Mac's notch.**<br>
-Hold a key, ask about anything on your screen, and it answers out loud. It can also hand real coding work to Claude Code, Codex, or OpenCode, running on the subscription you already pay for.
+**Learn your Mac, one step at a time.**<br>
+Ask how to do something in the app you're using. HeyMate points to the next step, explains it out loud, and waits while you try it. A free, open-source Mac companion that works with your Claude or ChatGPT plan through their official CLIs.
 
 [![Latest release](https://img.shields.io/github/v/release/UmarSiddiqui/heymate?label=download&color=3380FF&style=flat-square)](https://github.com/UmarSiddiqui/heymate/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/UmarSiddiqui/heymate/total?label=downloads&color=111113&style=flat-square)](https://github.com/UmarSiddiqui/heymate/releases)
 [![Release build](https://img.shields.io/github/actions/workflow/status/UmarSiddiqui/heymate/release.yml?branch=main&label=build&style=flat-square)](https://github.com/UmarSiddiqui/heymate/actions/workflows/release.yml)
 ![macOS 14.2+](https://img.shields.io/badge/macOS-14.2%2B-111113?style=flat-square&logo=apple)
 ![Swift](https://img.shields.io/badge/SwiftUI-native-F05138?style=flat-square&logo=swift&logoColor=white)
@@ -24,21 +23,29 @@ Hold a key, ask about anything on your screen, and it answers out loud. It can a
   <img src="docs/media/heymate-vision.gif" width="720" alt="HeyMate: hold control and option, ask why your Mac is slow, and the cursor flies to the process hogging the CPU and says what to close">
 </a>
 
-<sub>Hold <kbd>⌃</kbd> <kbd>⌥</kbd>, ask about anything on screen, let go. Here I asked "why is my Mac so slow?", and HeyMate pointed at the culprit and said it out loud.</sub>
+<sub>Hold <kbd>⌃</kbd> <kbd>⌥</kbd>, ask about anything on screen, let go. Illustrated example: ask "why is my Mac so slow?" and get a spoken answer with a pointer.</sub>
 
 </div>
 
 <br>
 
+## Try a task you want to learn
+
+Open an app, hold <kbd>⌃</kbd> <kbd>⌥</kbd>, and ask **“Walk me through this, one step at a time.”** For example: “Show me how to remove this logo's background in Photopea.” Use a sample image you can share with your AI provider.
+
+For a multi-step walkthrough, HeyMate shows a plan and points to the first action. Click the target or say “next”; it checks the screen again before explaining the next step. You do the task and learn the controls. Results depend on the selected model and what it can see; stop and correct it if a step is wrong.
+
+Screen guidance needs a vision-capable provider. The optional Apple Intelligence brain answers text questions only.
+
 ## Why HeyMate
 
-- **It sees what you see.** Push to talk, ask about anything on screen, and get an answer out loud. The cursor buddy flies to the thing it is talking about. Screenshots are taken only when a question needs one, and are never stored.
-- **It runs on your subscription.** Claude Code, Codex, or OpenCode: whichever CLI you already have installed and signed in. No HeyMate account. No second API bill.
-- **It asks before it acts.** Agents plan read-only first. Nothing is written, clicked, or sent without your approval, and every change is snapshotted so you can undo it.
+- **Help in the app you're using.** Spoken explanations and a cursor that points at the control being discussed. Screen context is captured during active interactions that need it, including each step of a walkthrough.
+- **Use your existing plan.** Claude Code, Codex, or OpenCode with your own sign-in. HeyMate is free; provider usage limits and optional paid services still apply.
+- **Keep control of coding work.** Agents show a read-only plan before execution. Approved jobs get workspace snapshots for undo; external actions are subject to their tool's approval policy. Undo cannot reverse a sent message or an external service change.
 
 <p align="center">
   <a href="https://getheymate.vercel.app/#demo"><img src="docs/media/heymate-demo-poster.jpg" width="720" alt="Play the 38-second HeyMate demo"></a><br>
-  <sub>▶ <a href="https://getheymate.vercel.app/#demo">Watch the 38-second tour</a> · Music: <a href="https://soundcloud.com/peyruis">Show Me by Peyruis</a>, <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a></sub>
+  <sub>▶ <a href="https://getheymate.vercel.app/#demo">Watch the 38-second illustrated tour</a> (recreated UI) · Music: <a href="https://soundcloud.com/peyruis">Show Me by Peyruis</a>, <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a></sub>
 </p>
 
 ## Features
@@ -73,8 +80,8 @@ Undo snapshots, Terminal takeover, completion receipts, and **Standing Orders**:
 <tr>
 <td width="50%" valign="top">
 
-### Mates: a small team, not one assistant
-"Make me a mate that tracks my YouTube comments." Each mate gets a name, a job, a personality, a face, its own memory, and a workspace folder.
+### Mates: helpers with a job of their own
+Create a patient design tutor from the Mates view. Give it a name, a job, a personality, a face, its own memory, and a workspace folder. Start with one clear job and tell it how you want it to help.
 
 **Routines** run daily at a time you choose or every *N* hours, and results land in that mate's chat.
 
@@ -98,57 +105,41 @@ Read-only calls run quietly. Anything that sends, deletes, or pays always asks f
 </tr>
 </table>
 
-## Everything a notch app does, plus an AI
+## Useful between questions
 
-If you use a notch app like [Boring Notch](https://github.com/TheBoredTeam/boring.notch), HeyMate covers every one of its shipped notch features and then adds a buddy that can see your screen, talk back, and do real work.
-
-| | Boring Notch | HeyMate |
-| --- | :---: | :---: |
-| Now Playing controls, swipe to change track | ✅ | ✅ |
-| Album art | ✅ | ✅ |
-| Live audio visualizer | ✅ | ✅ |
-| Calendar: next event | ✅ | ✅ |
-| File shelf with AirDrop | ✅ | ✅ |
-| Battery and charging | ✅ | ✅ |
-| Volume HUD replacement | ✅ | ✅ |
-| Camera mirror | ✅ | ✅ |
-| Opens on hover, expands on file drag | ✅ | ✅ |
-| Brightness and keyboard-backlight HUD | ✅ | ✅ |
-| Bluetooth connect/disconnect activity | ✅ | ✅ |
-| Focus timers, clipboard history, downloads, reminders | — | ✅ |
-| Push-to-talk questions about your screen, answered out loud | — | ✅ |
-| Cursor that points at what it's talking about | — | ✅ |
-| Claude Code / Codex / OpenCode agents with plan approval and undo | — | ✅ |
-| Mates with memory, workspaces, and schedules | — | ✅ |
-| Connectors: Apple apps, local CLIs, MCP, Composio | — | ✅ |
-| License | GPL-3.0 | MIT |
-
-<sub>Comparison based on Boring Notch's public README as of September 2026. Not affiliated.</sub>
+HeyMate also includes Now Playing, a file shelf with AirDrop, calendar and battery status, volume and brightness controls, a camera mirror, focus timers, clipboard history, and downloads. Enable the tools you use and leave the rest out of the way.
 
 ## Install
 
-1. Paste this in Terminal:
+HeyMate is an early open-source release for macOS 14.2 or later. Current builds use a stable self-signed certificate; they are **not signed with Apple Developer ID or notarized by Apple**.
 
-    ```sh
-    curl -fsSL https://getheymate.vercel.app/install.sh | bash
-    ```
+1. Download **[HeyMate.dmg](https://github.com/UmarSiddiqui/heymate/releases/latest/download/HeyMate.dmg)** and drag HeyMate into Applications. If macOS blocks the first launch, review the app and use **System Settings → Privacy & Security → Open Anyway** if you choose to proceed.
+2. Grant **Microphone**, **Accessibility**, and **Screen Recording** when setup asks. [Why each permission?](https://getheymate.vercel.app/permissions)
+3. Pick **Claude** or **ChatGPT** and finish the official CLI sign-in in your browser. Provider access and usage limits apply. The **Neither** option uses Apple Intelligence on supported Macs, for text-only questions.
+4. Open an app, hold <kbd>⌃</kbd> <kbd>⌥</kbd>, and ask for a walkthrough.
 
-    It downloads the latest build, copies HeyMate into Applications, and opens it. Because `curl` doesn't set macOS's quarantine flag, you won't see "could not verify HeyMate is free of malware". The [script](website/install.sh) is short; read it first if you like.
+Alternative install methods:
 
-    On Homebrew? `brew install umarsiddiqui/tap/heymate` does the same.
-2. Prefer the DMG? Download **[HeyMate.dmg](https://github.com/UmarSiddiqui/heymate/releases/latest/download/HeyMate.dmg)** and drag HeyMate into Applications. The build is not notarized, so macOS will block it: open **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/HeyMate.app`.
-3. Grant **Microphone**, **Accessibility**, and **Screen Recording** when the setup card asks. [Why each permission?](https://getheymate.vercel.app/permissions)
-4. When HeyMate asks which AI you already pay for, pick **Claude** or **ChatGPT** and click sign in. It installs the official CLI if it's missing and finishes the login in your browser. **Neither** runs on Apple Intelligence on your Mac.
-5. Hold <kbd>⌃</kbd> <kbd>⌥</kbd> and say hey.
+```sh
+brew install umarsiddiqui/tap/heymate
+```
 
-Every push to `main` is built on GitHub Actions and published as a new [release](https://github.com/UmarSiddiqui/heymate/releases) with its changes listed, so the download link always points to the newest build.
+Or inspect the [installer source](website/install.sh) before running:
+
+```sh
+curl -fsSL https://getheymate.vercel.app/install.sh | bash
+```
+
+The script replaces `/Applications/HeyMate.app`, removes its quarantine attribute, and opens it. This does not provide Apple notarization. A SHA-256 file is included with each GitHub release.
+
+App changes pushed to `main` trigger a GitHub Actions build and [release](https://github.com/UmarSiddiqui/heymate/releases). Documentation and website-only changes do not publish an app build.
 
 Suggestions, bugs, or trouble installing? [Open an issue](https://github.com/UmarSiddiqui/heymate/issues/new/choose) or email me at [umarsiddiqui3037+heymate@gmail.com](mailto:umarsiddiqui3037+heymate@gmail.com?subject=HeyMate).
 
 ### Requirements
 
 - macOS 14.2 or later, Apple silicon or Intel
-- A Claude or ChatGPT plan, or Apple Intelligence for on-device answers. Onboarding installs and signs in the CLI for you. To do it yourself, or to use OpenCode:
+- For screen guidance: a vision-capable Claude or ChatGPT plan, or another configured vision provider. Onboarding can install and sign in the CLI for you. Apple Intelligence is an optional text-only brain on supported Macs running macOS 26 or later; it cannot see the screen. To sign in yourself, or to use OpenCode:
 
 | Brain | Command | Sign in | Notes |
 | --- | --- | --- | --- |
@@ -160,10 +151,12 @@ HeyMate finds CLIs through your login-shell `PATH` (Homebrew, npm, Bun, and `~/.
 
 ## Privacy
 
-> Nothing runs in the background. HeyMate only takes a screenshot when you press the hotkey, and screenshots are never stored.
+> Screen context is used for active interactions that need it. Walkthroughs can capture again between steps. Enabled routines, standing orders, and approved coding jobs can run in the background.
 
-- **On your disk.** Chats, memory, mates, and routines live in `~/Library/Application Support/heymate/`, as text only. Memory can be turned off or cleared in Settings.
-- **On your Mac.** Custom-endpoint and connector credentials sit in a file only your account can read and never touch a HeyMate server, because there isn't one.
+- **On your disk.** HeyMate chat history stores text, not screenshot or audio bytes. Chats, memory, mates, and routines live in `~/Library/Application Support/heymate/`. Memory can be turned off or cleared in Settings.
+- **Temporary images.** Some CLI integrations write screenshots to temporary files and clean them up when the request or process ends. The optional local-control interface retains screenshots temporarily for callers. CLI histories and AI-provider retention are separate from HeyMate's chat history.
+- **Your providers.** Questions and relevant screen context go to your selected AI provider. Connector credentials are stored in a local file restricted to your Mac account and used to authenticate with services you connect. HeyMate has no account service storing your chats.
+- **Voice.** Apple Speech uses on-device recognition when available for your language; otherwise it can use Apple's service. Downloaded Parakeet and Kokoro models run locally. ElevenLabs is optional and receives the audio or text it processes.
 - **Excluded apps.** Password managers and System Settings are never captured by Talk, dictation, or screen-reading standing orders.
 - **Invisible on calls.** One switch hides the notch and cursor from screen shares.
 - **No analytics** unless a build explicitly supplies a PostHog key.
@@ -193,7 +186,7 @@ OpenCode jobs cannot run shell commands or spawn subagents, because its CLI lack
 
 ## Build from source
 
-Requires Xcode 26 and an internet connection on the first build (Swift Package Manager fetches Sparkle, PostHog, and PLCrashReporter).
+Requires Xcode 26 and an internet connection on the first build to fetch Swift packages.
 
 ```bash
 git clone https://github.com/UmarSiddiqui/heymate.git
@@ -243,12 +236,18 @@ If ElevenLabs or on-device can't run, HeyMate falls back to the Mac voice for th
 
 ## Known limitations
 
-- Builds are signed with a stable self-signed certificate, not Apple Developer ID, and are not notarized. Install with the Terminal one-liner or Homebrew to skip the macOS warning; a downloaded DMG needs System Settings → Privacy & Security → Open Anyway the first time.
+- Builds use a stable self-signed certificate, not Apple Developer ID, and are not notarized. A downloaded DMG can require System Settings → Privacy & Security → Open Anyway on first launch.
 - Screen Recording permission can lag until the next launch after you grant it.
 - OpenCode Talk needs `opencode serve` running.
 
+## Help build HeyMate
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, verification, and three bounded starter tasks. Useful contributions include a reproducible walkthrough failure, a clearer first-run instruction, or a small accessibility fix. No Swift experience is needed to test a task or improve the website.
+
+Check [open pull requests](https://github.com/UmarSiddiqui/heymate/pulls) before starting so work does not overlap. Include what you tried, the app version and provider, and what happened; remove private screen content before sharing.
+
 ## License
 
-MIT. See [`heymate/LICENSE`](heymate/LICENSE). Notices for third-party code are in [`heymate/THIRD_PARTY_NOTICES.md`](heymate/THIRD_PARTY_NOTICES.md).
+MIT. See [`LICENSE`](LICENSE). Notices for third-party code are in [`heymate/THIRD_PARTY_NOTICES.md`](heymate/THIRD_PARTY_NOTICES.md).
 
 <sub>Not affiliated with Apple, Anthropic, or OpenAI. Claude, ChatGPT, and macOS are trademarks of their respective owners.</sub>
