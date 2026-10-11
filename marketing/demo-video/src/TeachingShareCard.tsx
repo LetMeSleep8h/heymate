@@ -18,14 +18,15 @@ export const TeachingShareCard: React.FC = () => {
           <CanvasImage src={staticFile('faces/robot.jpg')} premountFor={fps} style={{width: 64, height: 64, borderRadius: 20}} />
         </div>
       </div>
-      <div style={{marginTop: 63, fontSize: 100, fontWeight: 600, lineHeight: 1.08, letterSpacing: '-0.058em'}}>
-        Learn your Mac.<br />One step at a time.
+      <div style={{marginTop: 63, fontSize: 94, fontWeight: 600, lineHeight: 1.08, letterSpacing: '-0.058em'}}>
+        Learn your software.<br />One step at a time.
       </div>
-      <div style={{marginTop: 31, fontSize: 35, lineHeight: 1.35, color: TEACHING.muted}}>
-        Free, open-source screen guidance for Mac.
+      <div style={{marginTop: 31, fontSize: 33, lineHeight: 1.35, color: TEACHING.muted}}>
+        Desktop apps and websites. Free and open source.
       </div>
-      <div style={{marginTop: 'auto', paddingTop: 22, borderTop: `1px solid ${TEACHING.line}`, fontSize: 28, fontWeight: 600, color: TEACHING.blue}}>
-        getheymate.vercel.app
+      <div style={{marginTop: 'auto', paddingTop: 22, borderTop: `1px solid ${TEACHING.line}`, display: 'flex', justifyContent: 'space-between', fontSize: 26}}>
+        <span style={{fontWeight: 600, color: TEACHING.blue}}>getheymate.vercel.app</span>
+        <span style={{color: TEACHING.muted}}>Available for macOS</span>
       </div>
     </AbsoluteFill>
   );

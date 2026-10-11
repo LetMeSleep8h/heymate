@@ -1,6 +1,6 @@
 # HeyMate
 
-> Learn your Mac, one step at a time. HeyMate is a free, open-source Mac companion that explains the next step, points to it, and waits while you try it. It supports screen guidance, named mates, coding agents, and optional notch utilities. Claude and ChatGPT plans connect through their official CLIs; provider limits apply.
+> Learn your software. One step at a time. HeyMate provides free, open-source screen guidance for desktop apps and websites. It explains the next step, points to it, and waits while you try it. Currently available for macOS. It supports screen guidance, named mates, coding agents, and optional notch utilities. Claude and ChatGPT plans connect through their official CLIs; provider limits apply.
 
 - Website: https://getheymate.vercel.app
 - Source: https://github.com/UmarSiddiqui/heymate
@@ -15,7 +15,7 @@
 ## Product facts
 
 - Native SwiftUI, MIT licensed, macOS 14.2 or later. Works on Apple silicon and Intel, with a top-center pill on Macs without a notch.
-- Hold Control + Option and ask for help with the app in front of you. Multi-step guidance can show a plan, point to the current step, wait for a target click or “next,” and capture fresh screen context before continuing. Model mistakes remain possible.
+- Hold Control + Option and ask for help with a desktop app or website. Multi-step guidance can show a plan, point to the current step, wait for a target click or “next,” and capture fresh screen context before continuing. Model mistakes remain possible.
 - Screen guidance requires a vision-capable provider. The optional Apple Intelligence brain is text-only, requires a supported Mac running macOS 26 or later, and cannot see the screen.
 - Claude Code, Codex, OpenCode, and a custom Anthropic-compatible API are supported routes. Capabilities differ by provider. HeyMate adds no subscription fee; provider limits and optional API/voice charges apply.
 - Mates have a name, job, personality, face, memory, workspace, and optional scheduled routines. Start with one clear job.

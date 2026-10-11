@@ -2,9 +2,16 @@
 
 ## Teaching concept (24 seconds)
 
-The `Teaching-Concept` folder in Studio contains `TeachingFirst` (1920×1080) and `TeachingFirstVertical` (1080×1920), both 30 fps. This is a new, separate, silent concept film about learning an app step by step and creating helpers for specific jobs. Every frame is labeled **Illustrated concept** and **not a screen recording**. It does not establish that a real task completed or that mate identity passed live testing.
+The `Teaching-Concept` folder in Studio contains `TeachingFirst` (1920×1080) and `TeachingFirstVertical` (1080×1920), both 30 fps. This is a new, separate, silent concept film about learning desktop apps and websites step by step and creating helpers for specific jobs. Every frame is labeled **Illustrated concept** and **not a screen recording**. It does not establish that a real task completed or that mate identity passed live testing.
 
 Preview with `npx remotion studio --no-open`, then select either composition. Four individual scenes are registered beside the full edits. Source lives in `src/TeachingFirst.tsx` and `src/teaching/`. It uses the existing app icon and mate faces; no new media dependency or third-party soundtrack is needed.
+
+Render the current software-teaching concepts from this directory:
+
+```sh
+npx remotion render TeachingFirst out/heymate-software-teaching-concept-1920x1080.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p
+npx remotion render TeachingFirstVertical out/heymate-software-teaching-concept-1080x1920.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p
+```
 
 Keep the original demo below until a verified replacement is ready. For a real capture, follow `marketing/LAUNCH.md` (from the repository root): preserve the uncut recording, provider/version, errors, and any speed-change labels. Do not remove the concept label and present this animation as captured product behavior.
 
@@ -15,7 +22,7 @@ Keep the original demo below until a verified replacement is ready. For a real c
 Reproduce the website asset from this directory:
 
 ```sh
-npx remotion still og-teaching ../../website/assets/img/og-teaching-v1.png --image-format=png
+npx remotion still og-teaching ../../website/assets/img/og-teaching-v2.png --image-format=png
 ```
 
 ## Original illustrated tour
